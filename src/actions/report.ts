@@ -79,6 +79,7 @@ export async function submitComplaintAction(data: {
   transactionId?: string;
   freezeRequested: boolean;
   evidenceFiles?: Array<{ name: string; size: number; sha256: string }>;
+  phone?: string;
 }): Promise<{ success: boolean; ack?: string; error?: string }> {
   // Generate ACK number in NCRP standard format: ACK-YYYY-XXXXXX
   const randomSixDigits = Math.floor(100000 + Math.random() * 900000);
@@ -88,10 +89,10 @@ export async function submitComplaintAction(data: {
     const cookieStore = await cookies();
     const token = cookieStore.get(SESSION_COOKIE)?.value;
 
-    let phone: string | undefined;
+    let phone: string | undefined = data.phone ? data.phone.trim().replace(/\D/g, "") : undefined;
 
-    // Check fallback session first if present
-    if (token) {
+    // Check fallback session if phone not provided directly
+    if (!phone && token) {
       const fallbackSess = getFallbackStore().sessions.get(token);
       if (fallbackSess) phone = fallbackSess.phone;
     }
@@ -118,7 +119,7 @@ export async function submitComplaintAction(data: {
     try {
       const collections = await getCollections();
       if (collections) {
-        if (token) {
+        if (!phone && token) {
           const sess = await collections.sessions.findOne({ token, expiresAt: { $gt: new Date() } });
           if (sess) {
             phone = sess.phone;
@@ -126,7 +127,7 @@ export async function submitComplaintAction(data: {
           }
         }
         await collections.complaints.insertOne(newComplaint);
-        console.log(`Complaint ${ack} saved to MongoDB.`);
+        console.log(`Complaint ${ack} saved to MongoDB with phone: ${phone || 'unlinked'}.`);
         // Also sync to fallback cache
         getFallbackStore().complaints.set(ack, newComplaint);
         return { success: true, ack };

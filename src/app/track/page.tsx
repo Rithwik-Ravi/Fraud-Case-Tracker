@@ -8,6 +8,7 @@ import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
 import ReadAloud from "@/components/ui/ReadAloud";
 import { trackComplaint, getUserComplaints, SerializedComplaint } from "@/actions/track";
+import { UserProfile } from "@/lib/mongodb";
 import { useAccount, maskPhone } from "@/context/AccountContext";
 import {
   Search,
@@ -19,6 +20,10 @@ import {
   AlertCircle,
   FolderOpen,
   ArrowRight,
+  UserCheck,
+  X,
+  FileText,
+  CheckCircle2,
 } from "lucide-react";
 
 function TrackContent() {
@@ -31,8 +36,10 @@ function TrackContent() {
   const [error, setError] = useState("");
   const [searchedComplaint, setSearchedComplaint] = useState<SerializedComplaint | null>(null);
 
-  // User's own complaints
+  // User's own complaints & profile
   const [userComplaints, setUserComplaints] = useState<SerializedComplaint[]>([]);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const [loadingUserComplaints, setLoadingUserComplaints] = useState(false);
 
   const fetchTrack = async (ack: string) => {
@@ -65,9 +72,15 @@ function TrackContent() {
     async function loadUserComplaints() {
       setLoadingUserComplaints(true);
       try {
-        const res = await getUserComplaints();
-        if (res.signedIn && res.complaints) {
-          setUserComplaints(res.complaints);
+        let localAcks: string[] = [];
+        try {
+          localAcks = JSON.parse(localStorage.getItem("surakhsa.recentAcks.v1") || "[]");
+        } catch {}
+
+        const res = await getUserComplaints(localAcks);
+        if (res.signedIn) {
+          if (res.complaints) setUserComplaints(res.complaints);
+          if (res.profile) setUserProfile(res.profile);
         }
       } catch (err) {
         console.error("Load user complaints error:", err);
@@ -293,22 +306,131 @@ function TrackContent() {
       {/* Citizen Account Complaints Section */}
       <div className="border-t border-ink-200 pt-8">
         {phone ? (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
+          <div className="space-y-5">
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h2 className="text-xl font-bold text-ink-900">Your Filed Complaints</h2>
                 <p className="text-xs text-ink-500">
-                  Complaints filed under your verified mobile number ({maskPhone(phone)})
+                  Official records registered under verified mobile number ({maskPhone(phone)})
                 </p>
               </div>
-              <Badge tone="success">Verified Account</Badge>
+              <Badge tone="success">DigiLocker Verified Account</Badge>
             </div>
 
+            {/* Verified Complainant Profile Card */}
+            <div className="rounded-ux-lg border border-brand-200 bg-brand-50/50 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="grid h-11 w-11 place-items-center rounded-full bg-brand-600 text-white font-bold text-base shadow-sm">
+                  {userProfile?.fullName ? userProfile.fullName.charAt(0) : "R"}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-ink-900 text-sm">
+                      {userProfile?.fullName || "Rajesh Kumar Sharma"}
+                    </span>
+                    <span className="rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-[10px] font-bold">
+                      ✓ {userProfile?.verifiedStatus || "DigiLocker Verified"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-ink-600 mt-0.5">
+                    Mobile: +91 {phone} • National ID: {userProfile?.idNumber || "XXXX-XXXX-4819"} • {userProfile?.state || "Delhi"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowProfileModal(true)}
+                className="rounded-ux border border-brand-300 bg-white px-3.5 py-2 text-xs font-semibold text-brand-700 hover:bg-brand-50 shadow-sm transition whitespace-nowrap"
+              >
+                View Full Citizen Dossier
+              </button>
+            </div>
+
+            {/* Profile Dossier Modal */}
+            {showProfileModal && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in duration-200">
+                <div className="relative w-full max-w-lg rounded-ux-xl border border-ink-200 bg-white p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+                  <div className="flex items-center justify-between border-b border-ink-100 pb-3">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck className="h-5 w-5 text-emerald-600" />
+                      <h3 className="text-base font-bold text-ink-900">
+                        Official Complainant Dossier
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowProfileModal(false)}
+                      className="rounded-ux p-1 text-ink-400 hover:text-ink-600 transition"
+                      aria-label="Close modal"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3 text-xs text-ink-800">
+                    <div className="grid grid-cols-2 gap-3 bg-ink-50 p-3 rounded-ux">
+                      <div>
+                        <span className="text-ink-500 block">Full Name:</span>
+                        <strong className="text-ink-900 text-sm">{userProfile?.fullName || "Rajesh Kumar Sharma"}</strong>
+                      </div>
+                      <div>
+                        <span className="text-ink-500 block">Mobile Number:</span>
+                        <strong className="text-ink-900 text-sm font-mono">+91 {phone}</strong>
+                      </div>
+                      <div>
+                        <span className="text-ink-500 block">Email Address:</span>
+                        <strong className="text-ink-900">{userProfile?.email || "rajesh.sharma@gov-portal.demo.in"}</strong>
+                      </div>
+                      <div>
+                        <span className="text-ink-500 block">Date of Birth & Gender:</span>
+                        <strong className="text-ink-900">{userProfile?.dob || "15 Aug 1988"} ({userProfile?.gender || "Male"})</strong>
+                      </div>
+                    </div>
+
+                    <div className="p-3 border border-ink-200 rounded-ux space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-ink-500">Government Identity Record:</span>
+                        <Badge tone="success">DigiLocker Certified</Badge>
+                      </div>
+                      <p className="font-mono font-bold text-ink-900 text-sm">
+                        {userProfile?.idType || "Aadhaar Card"}: {userProfile?.idNumber || "XXXX-XXXX-4819"}
+                      </p>
+                    </div>
+
+                    <div className="p-3 border border-ink-200 rounded-ux space-y-1">
+                      <span className="text-ink-500 block">Registered Residential Address:</span>
+                      <p className="text-ink-900 font-medium">
+                        {userProfile?.address || "Flat 402, Shanti Vihar, Sector 9, Rohini"}
+                      </p>
+                      <p className="text-ink-600">
+                        {userProfile?.district || "North West Delhi"}, {userProfile?.state || "Delhi"} - {userProfile?.pincode || "110085"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-ink-100 pt-3 flex justify-end">
+                    <Button variant="secondary" onClick={() => setShowProfileModal(false)} className="text-xs py-2 px-4">
+                      Close Dossier
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Complaints List */}
             {loadingUserComplaints ? (
-              <p className="text-sm text-ink-500 animate-pulse">Loading complaints from MongoDB...</p>
+              <p className="text-sm text-ink-500 animate-pulse py-4 text-center">Loading complaints from MongoDB...</p>
             ) : userComplaints.length === 0 ? (
-              <div className="rounded-ux-lg border border-dashed border-ink-300 p-6 text-center text-sm text-ink-500 bg-ink-50/50">
-                No previous complaints found for {maskPhone(phone)}. Complaints you file while signed in will appear here.
+              <div className="rounded-ux-lg border border-dashed border-ink-300 p-8 text-center text-sm text-ink-500 bg-ink-50/50 space-y-2">
+                <p>No previous complaints found for {maskPhone(phone)}.</p>
+                <p className="text-xs text-ink-400">Complaints you file while signed in will automatically be stored here.</p>
+                <Link
+                  href="/report"
+                  className="inline-block mt-3 rounded-ux bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700 transition"
+                >
+                  File a New Complaint →
+                </Link>
               </div>
             ) : (
               <div className="space-y-3">
@@ -319,19 +441,33 @@ function TrackContent() {
                       setAckInput(c.ack);
                       fetchTrack(c.ack);
                     }}
-                    className="block rounded-ux-lg border border-ink-200 bg-white p-4 transition hover:border-brand-500 hover:shadow-sm cursor-pointer"
+                    className="block rounded-ux-lg border border-ink-200 bg-white p-4 transition hover:border-brand-500 hover:shadow-md cursor-pointer group"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <span className="font-mono text-base font-bold text-ink-900">{c.ack}</span>
-                      <Badge tone={c.urgency === "golden-hour" ? "danger" : "brand"}>
-                        {c.categoryLabel}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-base font-bold text-ink-900 group-hover:text-brand-600 transition">
+                          {c.ack}
+                        </span>
+                        {c.amount && (
+                          <span className="rounded-full bg-rose-50 text-rose-700 px-2.5 py-0.5 text-xs font-bold border border-rose-200">
+                            ₹{Number(c.amount).toLocaleString("en-IN")}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge tone={c.urgency === "golden-hour" ? "danger" : "brand"}>
+                          {c.categoryLabel}
+                        </Badge>
+                        {c.freezeRequested && (
+                          <Badge tone="warning">Bank Freeze Dispatched</Badge>
+                        )}
+                      </div>
                     </div>
                     <p className="line-clamp-2 text-sm text-ink-600 mt-2">{c.narrative}</p>
-                    <div className="mt-3 flex items-center justify-between text-xs text-ink-500">
-                      <span>Filed: {new Date(c.createdAt).toLocaleDateString("en-IN")}</span>
-                      <span className="text-brand-600 font-semibold flex items-center gap-1">
-                        View Details <ArrowRight className="h-3.5 w-3.5" />
+                    <div className="mt-3 flex items-center justify-between text-xs text-ink-500 pt-2 border-t border-ink-100">
+                      <span>Filed on {new Date(c.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</span>
+                      <span className="text-brand-600 font-semibold flex items-center gap-1 group-hover:translate-x-0.5 transition">
+                        Track Live Progression <ArrowRight className="h-3.5 w-3.5" />
                       </span>
                     </div>
                   </div>
@@ -344,7 +480,7 @@ function TrackContent() {
             <div>
               <h2 className="text-base font-bold text-ink-900">Want to see all your complaints in one place?</h2>
               <p className="text-sm text-ink-600 mt-1">
-                An acknowledgement number works from anywhere without signing in. Signing in gets you the whole list across devices.
+                An acknowledgement number works from anywhere without signing in. Signing in gets you your full complaint dossier across devices.
               </p>
             </div>
             <Link

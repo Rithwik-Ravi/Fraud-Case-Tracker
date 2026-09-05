@@ -1,6 +1,6 @@
 "use server";
 
-import { getCollections, getFallbackStore, ComplaintDoc } from "@/lib/mongodb";
+import { getCollections, getFallbackStore, ComplaintDoc, UserProfile, DEFAULT_MOCK_PROFILE } from "@/lib/mongodb";
 import { cookies } from "next/headers";
 
 const SESSION_COOKIE = "surakhsa_session";
@@ -105,10 +105,11 @@ export async function trackComplaint(ackNumber: string): Promise<{
   }
 }
 
-export async function getUserComplaints(): Promise<{
+export async function getUserComplaints(clientRecentAcks?: string[]): Promise<{
   signedIn: boolean;
   phone?: string;
   complaints: SerializedComplaint[];
+  profile?: UserProfile;
 }> {
   try {
     const cookieStore = await cookies();
@@ -118,6 +119,7 @@ export async function getUserComplaints(): Promise<{
     }
 
     let phone: string | undefined;
+    let userProfile: UserProfile | undefined;
     const list: ComplaintDoc[] = [];
 
     // Try MongoDB
@@ -127,10 +129,39 @@ export async function getUserComplaints(): Promise<{
         const sess = await collections.sessions.findOne({ token, expiresAt: { $gt: new Date() } });
         if (sess) {
           phone = sess.phone;
-          const found = await collections.complaints
-            .find({ phone })
-            .sort({ createdAt: -1 })
-            .toArray();
+          const cleanDigits = phone.replace(/\D/g, "");
+          const last10 = cleanDigits.slice(-10);
+
+          // Get profile
+          const uDoc = await collections.users.findOne({
+            $or: [{ phone }, { phone: cleanDigits }, { phone: { $regex: last10 } }],
+          });
+          userProfile = uDoc?.profile || { ...DEFAULT_MOCK_PROFILE, phone: cleanDigits };
+
+          // Link any recent unlinked ACKs to this user in database
+          if (clientRecentAcks && clientRecentAcks.length > 0) {
+            try {
+              await collections.complaints.updateMany(
+                {
+                  ack: { $in: clientRecentAcks },
+                  $or: [{ phone: { $exists: false } }, { phone: "" }],
+                },
+                { $set: { phone: cleanDigits } }
+              );
+            } catch {}
+          }
+
+          const query: any = {
+            $or: [
+              { phone },
+              { phone: cleanDigits },
+              { phone: `+91${last10}` },
+              { phone: { $regex: last10 } },
+              ...(clientRecentAcks && clientRecentAcks.length > 0 ? [{ ack: { $in: clientRecentAcks } }] : []),
+            ],
+          };
+
+          const found = await collections.complaints.find(query).sort({ createdAt: -1 }).toArray();
           list.push(...found);
         }
       }
@@ -144,13 +175,32 @@ export async function getUserComplaints(): Promise<{
       if (fallbackSess) phone = fallbackSess.phone;
     }
 
-    if (phone && list.length === 0) {
+    if (phone) {
+      const cleanDigits = phone.replace(/\D/g, "");
+      const last10 = cleanDigits.slice(-10);
+      if (!userProfile) userProfile = { ...DEFAULT_MOCK_PROFILE, phone: cleanDigits };
+
+      const existingAcks = new Set(list.map((c) => c.ack));
       for (const comp of getFallbackStore().complaints.values()) {
-        if (comp.phone === phone) list.push(comp);
+        const compPhone = comp.phone ? comp.phone.replace(/\D/g, "") : "";
+        const isMatch = compPhone.endsWith(last10) || (clientRecentAcks && clientRecentAcks.includes(comp.ack));
+        if (isMatch && !existingAcks.has(comp.ack)) {
+          list.push(comp);
+          existingAcks.add(comp.ack);
+        }
       }
     }
 
-    const mapped: SerializedComplaint[] = list.map((doc) => ({
+    // Ensure list is deduplicated and sorted newest first
+    const seen = new Set<string>();
+    const deduplicated = list.filter((c) => {
+      if (seen.has(c.ack)) return false;
+      seen.add(c.ack);
+      return true;
+    });
+    deduplicated.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    const mapped: SerializedComplaint[] = deduplicated.map((doc) => ({
       ack: doc.ack,
       phone: doc.phone,
       categoryId: doc.categoryId,
@@ -166,10 +216,10 @@ export async function getUserComplaints(): Promise<{
       stage: doc.stage || 1,
       createdAt: new Date(doc.createdAt).toISOString(),
       evidenceFiles: doc.evidenceFiles,
-      policeUnitAssigned: "State Cyber Crime Police Station",
+      policeUnitAssigned: "State Cyber Crime Police Station (HQ)",
     }));
 
-    return { signedIn: !!phone, phone, complaints: mapped };
+    return { signedIn: !!phone, phone, complaints: mapped, profile: userProfile };
   } catch (err) {
     console.error("Get user complaints error:", err);
     return { signedIn: false, complaints: [] };

@@ -1,24 +1,19 @@
 import { MongoClient, Db, ObjectId } from "mongodb";
 
-const uri = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/surakhsa";
+export const getMongoUri = () => process.env.MONGODB_URI || "";
+export const getMongoDbName = () => process.env.MONGODB_DB || "Saarthi";
 
-const options = {
-  serverSelectionTimeoutMS: 4000, // Timeout fast after 4s instead of hanging 30s
-  connectTimeoutMS: 4000,
-};
-
-let client: MongoClient | null = null;
-let clientPromise: Promise<MongoClient> | null = null;
+let activeClient: MongoClient | null = null;
 
 declare global {
-  var _mongoClientPromise: Promise<MongoClient> | undefined;
+  var _mongoActiveClient: MongoClient | undefined;
   var _fallbackComplaints: Map<string, ComplaintDoc> | undefined;
   var _fallbackUsers: Map<string, UserDoc> | undefined;
   var _fallbackSessions: Map<string, SessionDoc> | undefined;
   var _fallbackSuspectReports: Map<string, SuspectReportDoc> | undefined;
 }
 
-// In-memory fallback for environments (like Vercel preview) where MONGODB_URI is not yet configured
+// In-memory fallback for offline or cold-start environments
 if (!global._fallbackComplaints) global._fallbackComplaints = new Map();
 if (!global._fallbackUsers) global._fallbackUsers = new Map();
 if (!global._fallbackSessions) global._fallbackSessions = new Map();
@@ -33,38 +28,83 @@ export function getFallbackStore() {
   };
 }
 
-try {
-  if (process.env.NODE_ENV === "development") {
-    if (!global._mongoClientPromise) {
-      client = new MongoClient(uri, options);
-      global._mongoClientPromise = client.connect();
-    }
-    clientPromise = global._mongoClientPromise;
-  } else {
-    client = new MongoClient(uri, options);
-    clientPromise = client.connect();
+export async function getMongoClient(): Promise<MongoClient | null> {
+  if (process.env.NODE_ENV === "development" && global._mongoActiveClient) {
+    return global._mongoActiveClient;
   }
-} catch (e) {
-  console.warn("MongoDB client initialization warning:", e);
+  if (activeClient) {
+    return activeClient;
+  }
+
+  const uri = getMongoUri();
+  if (!uri) {
+    return null;
+  }
+  try {
+    const client = new MongoClient(uri, {
+      serverSelectionTimeoutMS: 5000,
+      connectTimeoutMS: 5000,
+    });
+    await client.connect();
+
+    if (process.env.NODE_ENV === "development") {
+      global._mongoActiveClient = client;
+    }
+    activeClient = client;
+    return activeClient;
+  } catch (err) {
+    console.warn("MongoDB connection attempt failed, continuing with resilient cache:", (err as Error).message);
+    return null;
+  }
 }
 
 export async function getDatabase(): Promise<Db | null> {
   try {
-    if (!clientPromise) return null;
-    const c = await clientPromise;
-    const dbName = process.env.MONGODB_DB || "surakhsa";
-    return c.db(dbName);
+    const client = await getMongoClient();
+    if (!client) return null;
+    return client.db(getMongoDbName());
   } catch (err) {
-    console.warn("MongoDB connection unavailable, using resilient fallback store:", (err as Error).message);
+    console.warn("MongoDB getDatabase error:", (err as Error).message);
     return null;
   }
 }
+
+export interface UserProfile {
+  fullName: string;
+  phone: string;
+  email: string;
+  gender: "Male" | "Female" | "Other";
+  dob: string;
+  idType: "Aadhaar Card" | "Voter ID" | "PAN Card" | "Driving License";
+  idNumber: string;
+  address: string;
+  district: string;
+  state: string;
+  pincode: string;
+  verifiedStatus: "DigiLocker Verified" | "Official Identity Record";
+}
+
+export const DEFAULT_MOCK_PROFILE: UserProfile = {
+  fullName: "Rajesh Kumar Sharma",
+  phone: "9600000598",
+  email: "rajesh.sharma@gov-portal.demo.in",
+  gender: "Male",
+  dob: "1988-08-15",
+  idType: "Aadhaar Card",
+  idNumber: "XXXX-XXXX-4819",
+  address: "Flat 402, Shanti Vihar, Sector 9, Rohini",
+  district: "North West Delhi",
+  state: "Delhi",
+  pincode: "110085",
+  verifiedStatus: "DigiLocker Verified",
+};
 
 export interface UserDoc {
   _id?: ObjectId;
   phone: string;
   createdAt: Date;
   lastLoginAt: Date;
+  profile?: UserProfile;
 }
 
 export interface SessionDoc {

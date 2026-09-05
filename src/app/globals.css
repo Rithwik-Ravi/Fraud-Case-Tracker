@@ -49,20 +49,22 @@ body {
   color: var(--color-ink-900);
 }
 
-/* Text size scaling */
-html[data-textsize="sm"] body {
-  font-size: 14px;
+/* Text size scaling applied to root html so all rem units scale across the entire application */
+html[data-textsize="sm"] {
+  font-size: 14px !important;
 }
-html[data-textsize="base"] body {
-  font-size: 16px;
+html[data-textsize="base"] {
+  font-size: 16px !important;
 }
-html[data-textsize="lg"] body {
-  font-size: 18px;
+html[data-textsize="lg"] {
+  font-size: 18.5px !important;
 }
 
 /* Assisted Mode styling */
+html[data-assist="on"] {
+  font-size: 20px !important;
+}
 html[data-assist="on"] body {
-  font-size: 20px;
   line-height: 1.7;
 }
 

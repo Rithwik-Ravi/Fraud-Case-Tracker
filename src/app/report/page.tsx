@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLang } from "@/context/LanguageContext";
 import { useAssist } from "@/context/AssistContext";
+import { useAccount } from "@/context/AccountContext";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 import Badge from "@/components/ui/Badge";
@@ -48,6 +49,7 @@ export default function ReportPage() {
   const router = useRouter();
   const { lang, t, speechLocale } = useLang();
   const { assist, setAssist } = useAssist();
+  const { phone: accountPhone } = useAccount();
 
   // Local state override for guided vs standard within report
   const [useGuided, setUseGuided] = useState<boolean>(false);
@@ -245,11 +247,19 @@ export default function ReportPage() {
         transactionId: transactionId || undefined,
         freezeRequested,
         evidenceFiles,
+        phone: accountPhone || undefined,
       });
 
       if (!res.success || !res.ack) {
         setErrorMessage(res.error || "Failed to submit report. Please try again.");
       } else {
+        try {
+          const stored = JSON.parse(localStorage.getItem("surakhsa.recentAcks.v1") || "[]");
+          if (!stored.includes(res.ack)) {
+            stored.unshift(res.ack);
+            localStorage.setItem("surakhsa.recentAcks.v1", JSON.stringify(stored.slice(0, 20)));
+          }
+        } catch {}
         setAckNumber(res.ack);
         setCurrentStep("SUCCESS");
       }
