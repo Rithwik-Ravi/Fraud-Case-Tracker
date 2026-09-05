@@ -1,26 +1,97 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@theme {
+  --color-brand-50: var(--color-indigo-50);
+  --color-brand-100: var(--color-indigo-100);
+  --color-brand-200: var(--color-indigo-200);
+  --color-brand-500: var(--color-indigo-500);
+  --color-brand-600: var(--color-indigo-600);
+  --color-brand-700: var(--color-indigo-700);
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+  --color-ink-50: var(--color-slate-50);
+  --color-ink-100: var(--color-slate-100);
+  --color-ink-200: var(--color-slate-200);
+  --color-ink-300: var(--color-slate-300);
+  --color-ink-400: var(--color-slate-400);
+  --color-ink-500: var(--color-slate-500);
+  --color-ink-600: var(--color-slate-600);
+  --color-ink-700: var(--color-slate-700);
+  --color-ink-800: var(--color-slate-800);
+  --color-ink-900: var(--color-slate-900);
+  
+  --color-danger-50: var(--color-red-50);
+  --color-danger-200: var(--color-red-200);
+  --color-danger-500: var(--color-red-500);
+  --color-danger-600: var(--color-red-600);
+  --color-danger-700: var(--color-red-700);
+  
+  --color-warning-50: var(--color-amber-50);
+  --color-warning-500: var(--color-amber-500);
+  --color-warning-600: var(--color-amber-600);
+  --color-warning-700: var(--color-amber-700);
+  
+  --color-success-50: var(--color-emerald-50);
+  --color-success-100: var(--color-emerald-100);
+  --color-success-200: var(--color-emerald-200);
+  --color-success-500: var(--color-emerald-500);
+  --color-success-600: var(--color-emerald-600);
+  --color-success-700: var(--color-emerald-700);
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --radius-ux-sm: 0.25rem;
+  --radius-ux: 0.5rem;
+  --radius-ux-lg: 0.75rem;
+  --radius-ux-xl: 1rem;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
+  background-color: var(--color-white);
+  color: var(--color-ink-900);
+}
+
+/* Text size scaling */
+html[data-textsize="sm"] body {
+  font-size: 14px;
+}
+html[data-textsize="base"] body {
+  font-size: 16px;
+}
+html[data-textsize="lg"] body {
+  font-size: 18px;
+}
+
+/* Assisted Mode styling */
+html[data-assist="on"] body {
+  font-size: 20px;
+  line-height: 1.7;
+}
+
+html[data-assist="on"] main button,
+html[data-assist="on"] main [role="button"],
+html[data-assist="on"] main a.ux-target,
+html[data-assist="on"] main select,
+html[data-assist="on"] main input,
+html[data-assist="on"] main textarea,
+html[data-assist="on"] nav[aria-label="Main"] a {
+  min-height: 54px;
+}
+
+html[data-assist="on"] :focus-visible {
+  outline-offset: 3px;
+  outline: 4px solid var(--color-brand-600);
+}
+
+html[data-assist="on"] p,
+html[data-assist="on"] li {
+  max-width: 62ch;
+}
+
+/* Ping & arrival animations */
+@keyframes ux-arrive {
+  0% { opacity: 0; transform: translateY(-8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.ux-arrive {
+  animation: 0.35s ease-out both ux-arrive;
 }
