@@ -1,6 +1,8 @@
 import { MongoClient, Db, ObjectId } from "mongodb";
 
-export const getMongoUri = () => process.env.MONGODB_URI || "";
+const DEFAULT_ATLAS_URI = "mongodb+srv://mailrittyplay_db_user:lDXkilgcqfmJhzvy@saarthi.u7yodo1.mongodb.net/?appName=Saarthi";
+
+export const getMongoUri = () => process.env.MONGODB_URI || DEFAULT_ATLAS_URI;
 export const getMongoDbName = () => process.env.MONGODB_DB || "Saarthi";
 
 let activeClient: MongoClient | null = null;
@@ -29,7 +31,7 @@ export function getFallbackStore() {
 }
 
 export async function getMongoClient(): Promise<MongoClient | null> {
-  if (process.env.NODE_ENV === "development" && global._mongoActiveClient) {
+  if (global._mongoActiveClient) {
     return global._mongoActiveClient;
   }
   if (activeClient) {
@@ -42,14 +44,12 @@ export async function getMongoClient(): Promise<MongoClient | null> {
   }
   try {
     const client = new MongoClient(uri, {
-      serverSelectionTimeoutMS: 5000,
-      connectTimeoutMS: 5000,
+      serverSelectionTimeoutMS: 4000,
+      connectTimeoutMS: 4000,
     });
     await client.connect();
 
-    if (process.env.NODE_ENV === "development") {
-      global._mongoActiveClient = client;
-    }
+    global._mongoActiveClient = client;
     activeClient = client;
     return activeClient;
   } catch (err) {

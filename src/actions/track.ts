@@ -136,7 +136,26 @@ export async function getUserComplaints(clientRecentAcks?: string[]): Promise<{
           const uDoc = await collections.users.findOne({
             $or: [{ phone }, { phone: cleanDigits }, { phone: { $regex: last10 } }],
           });
-          userProfile = uDoc?.profile || { ...DEFAULT_MOCK_PROFILE, phone: cleanDigits };
+          if (uDoc?.profile) {
+            userProfile = uDoc.profile;
+          } else if (cleanDigits === "9600000598") {
+            userProfile = { ...DEFAULT_MOCK_PROFILE, phone: cleanDigits };
+          } else {
+            userProfile = {
+              fullName: "Citizen Account",
+              phone: cleanDigits,
+              email: `citizen.${last10}@portal.gov.in`,
+              gender: "Other",
+              dob: "1995-01-01",
+              idType: "Aadhaar Card",
+              idNumber: `XXXX-XXXX-${last10.slice(-4)}`,
+              address: "Registered Citizen Residence",
+              district: "Local District",
+              state: "Delhi",
+              pincode: "110001",
+              verifiedStatus: "Official Identity Record",
+            };
+          }
 
           // Link any recent unlinked ACKs to this user in database
           if (clientRecentAcks && clientRecentAcks.length > 0) {
@@ -178,7 +197,26 @@ export async function getUserComplaints(clientRecentAcks?: string[]): Promise<{
     if (phone) {
       const cleanDigits = phone.replace(/\D/g, "");
       const last10 = cleanDigits.slice(-10);
-      if (!userProfile) userProfile = { ...DEFAULT_MOCK_PROFILE, phone: cleanDigits };
+      if (!userProfile) {
+        if (cleanDigits === "9600000598") {
+          userProfile = { ...DEFAULT_MOCK_PROFILE, phone: cleanDigits };
+        } else {
+          userProfile = {
+            fullName: "Citizen Account",
+            phone: cleanDigits,
+            email: `citizen.${last10}@portal.gov.in`,
+            gender: "Other",
+            dob: "1995-01-01",
+            idType: "Aadhaar Card",
+            idNumber: `XXXX-XXXX-${last10.slice(-4)}`,
+            address: "Registered Citizen Residence",
+            district: "Local District",
+            state: "Delhi",
+            pincode: "110001",
+            verifiedStatus: "Official Identity Record",
+          };
+        }
+      }
 
       const existingAcks = new Set(list.map((c) => c.ack));
       for (const comp of getFallbackStore().complaints.values()) {

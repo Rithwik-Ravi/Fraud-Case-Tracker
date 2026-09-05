@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCollections, getFallbackStore, DEFAULT_MOCK_PROFILE } from "@/lib/mongodb";
+import { getCollections, getFallbackStore, DEFAULT_MOCK_PROFILE, UserProfile } from "@/lib/mongodb";
 import crypto from "crypto";
 
 const SESSION_COOKIE = "surakhsa_session";
@@ -15,8 +15,11 @@ export async function GET(req: NextRequest) {
   try {
     const token = req.cookies.get(SESSION_COOKIE)?.value;
     if (!token) {
-      return NextResponse.json({ phone: null });
+      return NextResponse.json({ phone: null, profile: null });
     }
+
+    let phone: string | null = null;
+    let profile: UserProfile | null = null;
 
     // Check MongoDB
     try {
@@ -27,7 +30,11 @@ export async function GET(req: NextRequest) {
           expiresAt: { $gt: new Date() },
         });
         if (session) {
-          return NextResponse.json({ phone: session.phone });
+          phone = session.phone;
+          const userDoc = await collections.users.findOne({ phone });
+          if (userDoc?.profile) {
+            profile = userDoc.profile;
+          }
         }
       }
     } catch (mongoErr) {
@@ -35,22 +42,26 @@ export async function GET(req: NextRequest) {
     }
 
     // Check fallback
-    const fallbackSess = getFallbackStore().sessions.get(token);
-    if (fallbackSess && fallbackSess.expiresAt > new Date()) {
-      return NextResponse.json({ phone: fallbackSess.phone });
+    if (!phone) {
+      const fallbackSess = getFallbackStore().sessions.get(token);
+      if (fallbackSess && fallbackSess.expiresAt > new Date()) {
+        phone = fallbackSess.phone;
+        const fbUser = getFallbackStore().users.get(phone);
+        if (fbUser?.profile) profile = fbUser.profile;
+      }
     }
 
-    return NextResponse.json({ phone: null });
+    return NextResponse.json({ phone, profile });
   } catch (err) {
     console.error("Auth GET error:", err);
-    return NextResponse.json({ phone: null });
+    return NextResponse.json({ phone: null, profile: null });
   }
 }
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { action, phone, otp } = body;
+    const { action, phone, otp, profile } = body;
 
     if (action === "request_otp") {
       if (!phone || !/^[6-9]\d{9}$/.test(phone)) {
@@ -61,9 +72,29 @@ export async function POST(req: NextRequest) {
       }
 
       const generatedOtp = generateDeterministicOtp(phone);
+      let isRegistered = false;
+
+      if (phone === "9600000598") {
+        isRegistered = true;
+      } else {
+        try {
+          const collections = await getCollections();
+          if (collections) {
+            const existingUser = await collections.users.findOne({ phone });
+            if (existingUser?.profile?.fullName) {
+              isRegistered = true;
+            }
+          } else {
+            const fbUser = getFallbackStore().users.get(phone);
+            if (fbUser?.profile?.fullName) isRegistered = true;
+          }
+        } catch {}
+      }
+
       return NextResponse.json({
         ok: true,
         otp: generatedOtp,
+        isRegistered,
         message: "Demo OTP generated. In production, this would be delivered via SMS.",
       });
     }
@@ -74,7 +105,7 @@ export async function POST(req: NextRequest) {
       }
 
       const expectedOtp = generateDeterministicOtp(phone);
-      if (otp !== expectedOtp && otp !== "123456" && otp !== "248190") {
+      if (otp !== expectedOtp && otp !== "123456" && otp !== "1930" && otp !== "248190") {
         return NextResponse.json({ error: "Incorrect OTP. Please check the code shown above." }, { status: 400 });
       }
 
@@ -82,20 +113,189 @@ export async function POST(req: NextRequest) {
       const sessionToken = crypto.randomBytes(32).toString("hex");
       const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
-      const mockProfile = {
-        ...DEFAULT_MOCK_PROFILE,
+      // 1. DEMO PROFILE CASE (Rajesh Kumar Sharma)
+      if (phone === "9600000598") {
+        const demoProfile = { ...DEFAULT_MOCK_PROFILE, phone };
+
+        try {
+          const collections = await getCollections();
+          if (collections) {
+            await collections.users.updateOne(
+              { phone },
+              {
+                $set: { lastLoginAt: now, profile: demoProfile },
+                $setOnInsert: { phone, createdAt: now },
+              },
+              { upsert: true }
+            );
+
+            await collections.sessions.insertOne({
+              token: sessionToken,
+              phone,
+              createdAt: now,
+              expiresAt,
+            });
+
+            // Ensure ACK-2026-314982 is linked to the demo account for judges
+            const existingComplaint = await collections.complaints.findOne({ ack: "ACK-2026-314982" });
+            if (!existingComplaint) {
+              await collections.complaints.insertOne({
+                ack: "ACK-2026-314982",
+                phone,
+                categoryId: "net_banking",
+                categoryLabel: "Internet Banking / Phishing Fraud",
+                parentCategory: "Financial Fraud",
+                urgency: "golden-hour",
+                narrative: "I got a phone call from someone I did not know. I transferred money to them myself. 98,765 rupees went out of my account. This happened within the last hour.",
+                amount: 98765,
+                bankAccount: "1234567890",
+                bankName: "SBI",
+                transactionId: "123456789012",
+                freezeRequested: true,
+                stage: 2,
+                createdAt: new Date(),
+                evidenceFiles: [
+                  { name: "WhatsApp Image 2026-09-03 at 9.58.21 AM.jpeg", size: 65843, sha256: "26aabe5ef6cc35d7..." }
+                ],
+              });
+            } else {
+              await collections.complaints.updateOne(
+                { ack: "ACK-2026-314982" },
+                { $set: { phone } }
+              );
+            }
+          }
+        } catch (mongoErr) {
+          console.warn("MongoDB demo login warning:", (mongoErr as Error).message);
+        }
+
+        getFallbackStore().sessions.set(sessionToken, {
+          token: sessionToken,
+          phone,
+          createdAt: now,
+          expiresAt,
+        });
+        getFallbackStore().users.set(phone, {
+          phone,
+          createdAt: now,
+          lastLoginAt: now,
+          profile: demoProfile,
+        });
+
+        const response = NextResponse.json({ ok: true, isNewUser: false, phone, profile: demoProfile });
+        response.cookies.set({
+          name: SESSION_COOKIE,
+          value: sessionToken,
+          httpOnly: true,
+          path: "/",
+          sameSite: "lax",
+          expires: expiresAt,
+        });
+        return response;
+      }
+
+      // 2. REGULAR USER / NEW CITIZEN CASE
+      let existingProfile: UserProfile | null = null;
+      try {
+        const collections = await getCollections();
+        if (collections) {
+          const userDoc = await collections.users.findOne({ phone });
+          if (userDoc?.profile?.fullName) {
+            existingProfile = userDoc.profile;
+          }
+        }
+      } catch (mongoErr) {
+        console.warn("MongoDB regular login check warning:", (mongoErr as Error).message);
+      }
+
+      if (!existingProfile) {
+        const fbUser = getFallbackStore().users.get(phone);
+        if (fbUser?.profile?.fullName) existingProfile = fbUser.profile;
+      }
+
+      // If existing user already has a complete profile, log them straight in!
+      if (existingProfile) {
+        try {
+          const collections = await getCollections();
+          if (collections) {
+            await collections.users.updateOne(
+              { phone },
+              { $set: { lastLoginAt: now } }
+            );
+            await collections.sessions.insertOne({
+              token: sessionToken,
+              phone,
+              createdAt: now,
+              expiresAt,
+            });
+          }
+        } catch (mongoErr) {
+          console.warn("MongoDB session store warning:", (mongoErr as Error).message);
+        }
+
+        getFallbackStore().sessions.set(sessionToken, {
+          token: sessionToken,
+          phone,
+          createdAt: now,
+          expiresAt,
+        });
+
+        const response = NextResponse.json({ ok: true, isNewUser: false, phone, profile: existingProfile });
+        response.cookies.set({
+          name: SESSION_COOKIE,
+          value: sessionToken,
+          httpOnly: true,
+          path: "/",
+          sameSite: "lax",
+          expires: expiresAt,
+        });
+        return response;
+      }
+
+      // If user does NOT exist, signal frontend to display Registration form
+      return NextResponse.json({
+        ok: true,
+        isNewUser: true,
         phone,
+        message: "OTP verified. Please complete Citizen Profile registration.",
+      });
+    }
+
+    if (action === "register") {
+      if (!phone || !/^[6-9]\d{9}$/.test(phone)) {
+        return NextResponse.json({ error: "Invalid mobile number." }, { status: 400 });
+      }
+      if (!profile || !profile.fullName || !profile.email) {
+        return NextResponse.json({ error: "Full Name and Email Address are required." }, { status: 400 });
+      }
+
+      const now = new Date();
+      const sessionToken = crypto.randomBytes(32).toString("hex");
+      const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+      const newProfile: UserProfile = {
+        fullName: profile.fullName.trim(),
+        phone,
+        email: profile.email.trim(),
+        gender: profile.gender || "Other",
+        dob: profile.dob || "",
+        idType: profile.idType || "Aadhaar Card",
+        idNumber: profile.idNumber ? profile.idNumber.trim() : "XXXX-XXXX-0000",
+        address: profile.address ? profile.address.trim() : "",
+        district: profile.district ? profile.district.trim() : "",
+        state: profile.state ? profile.state.trim() : "Delhi",
+        pincode: profile.pincode ? profile.pincode.trim() : "",
+        verifiedStatus: "Official Identity Record",
       };
 
-      // Store in MongoDB if available
       try {
         const collections = await getCollections();
         if (collections) {
           await collections.users.updateOne(
             { phone },
             {
-              $set: { lastLoginAt: now },
-              $setOnInsert: { phone, createdAt: now, profile: mockProfile },
+              $set: { profile: newProfile, lastLoginAt: now },
+              $setOnInsert: { phone, createdAt: now },
             },
             { upsert: true }
           );
@@ -106,41 +306,18 @@ export async function POST(req: NextRequest) {
             createdAt: now,
             expiresAt,
           });
-
-          // Ensure ACK-2026-314982 is linked to this account for judges to inspect
-          const existingComplaint = await collections.complaints.findOne({ ack: "ACK-2026-314982" });
-          if (!existingComplaint) {
-            await collections.complaints.insertOne({
-              ack: "ACK-2026-314982",
-              phone,
-              categoryId: "net_banking",
-              categoryLabel: "Internet Banking / Phishing Fraud",
-              parentCategory: "Financial Fraud",
-              urgency: "golden-hour",
-              narrative: "I got a phone call from someone I did not know. I transferred money to them myself. 98,765 rupees went out of my account. This happened within the last hour.",
-              amount: 98765,
-              bankAccount: "1234567890",
-              bankName: "SBI",
-              transactionId: "123456789012",
-              freezeRequested: true,
-              stage: 2,
-              createdAt: new Date(),
-              evidenceFiles: [
-                { name: "WhatsApp Image 2026-09-03 at 9.58.21 AM.jpeg", size: 65843, sha256: "26aabe5ef6cc35d7..." }
-              ],
-            });
-          } else if (!existingComplaint.phone || existingComplaint.phone !== phone) {
-            await collections.complaints.updateOne(
-              { ack: "ACK-2026-314982" },
-              { $set: { phone } }
-            );
-          }
         }
       } catch (mongoErr) {
-        console.warn("MongoDB session store warning:", (mongoErr as Error).message);
+        console.warn("MongoDB registration store warning:", (mongoErr as Error).message);
       }
 
-      // Always save to fallback session store
+      getFallbackStore().users.set(phone, {
+        phone,
+        createdAt: now,
+        lastLoginAt: now,
+        profile: newProfile,
+      });
+
       getFallbackStore().sessions.set(sessionToken, {
         token: sessionToken,
         phone,
@@ -148,27 +325,7 @@ export async function POST(req: NextRequest) {
         expiresAt,
       });
 
-      getFallbackStore().complaints.set("ACK-2026-314982", {
-        ack: "ACK-2026-314982",
-        phone,
-        categoryId: "net_banking",
-        categoryLabel: "Internet Banking / Phishing Fraud",
-        parentCategory: "Financial Fraud",
-        urgency: "golden-hour",
-        narrative: "I got a phone call from someone I did not know. I transferred money to them myself. 98,765 rupees went out of my account. This happened within the last hour.",
-        amount: 98765,
-        bankAccount: "1234567890",
-        bankName: "SBI",
-        transactionId: "123456789012",
-        freezeRequested: true,
-        stage: 2,
-        createdAt: new Date(),
-        evidenceFiles: [
-          { name: "WhatsApp Image 2026-09-03 at 9.58.21 AM.jpeg", size: 65843, sha256: "26aabe5ef6cc35d7..." }
-        ],
-      });
-
-      const response = NextResponse.json({ ok: true, phone });
+      const response = NextResponse.json({ ok: true, isNewUser: false, phone, profile: newProfile });
       response.cookies.set({
         name: SESSION_COOKIE,
         value: sessionToken,
@@ -177,7 +334,6 @@ export async function POST(req: NextRequest) {
         sameSite: "lax",
         expires: expiresAt,
       });
-
       return response;
     }
 
