@@ -218,3 +218,15 @@ Open [http://localhost:3000](http://localhost:3000).
 npm run db:check
 ```
 This connects to your configured MongoDB database, validates schema collections, and displays the latest stored complaint records.
+
+### 3. Run Automated Test Suite
+```bash
+npm test
+```
+Runs the full suite of triage, classification, timeline/SLA, and taxonomy verification tests:
+- Event gap and duration formatting
+- Statutory SLA stage naming
+- Taxonomy consistency and parent categorizations
+- Keyword reachability & held-out narrative classification accuracy (>= 90%)
+- Child-safety routing & hostile input protection
+
