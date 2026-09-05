@@ -61,6 +61,7 @@ export default function ReportPage() {
   const [isRecording, setIsRecording] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
   const recognitionRef = useRef<any>(null);
+  const baseNarrativeRef = useRef<string>("");
 
   // Triage state
   const [triageResult, setTriageResult] = useState<TriageResult | null>(null);
@@ -105,17 +106,25 @@ export default function ReportPage() {
         rec.lang = voiceLang;
 
         rec.onresult = (event: any) => {
-          let transcript = "";
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-            transcript += event.results[i][0].transcript;
+          let sessionTranscript = "";
+          for (let i = 0; i < event.results.length; i++) {
+            sessionTranscript += event.results[i][0].transcript;
           }
-          if (transcript) {
-            setNarrative((prev) => (prev ? `${prev} ${transcript}` : transcript));
+          const trimmed = sessionTranscript.trim();
+          if (trimmed) {
+            const base = baseNarrativeRef.current ? baseNarrativeRef.current.trim() : "";
+            setNarrative(base ? `${base} ${trimmed}` : trimmed);
           }
         };
 
         rec.onerror = () => setIsRecording(false);
-        rec.onend = () => setIsRecording(false);
+        rec.onend = () => {
+          setIsRecording(false);
+          setNarrative((current) => {
+            baseNarrativeRef.current = current;
+            return current;
+          });
+        };
         recognitionRef.current = rec;
       }
     }
@@ -128,6 +137,7 @@ export default function ReportPage() {
       setIsRecording(false);
     } else {
       try {
+        baseNarrativeRef.current = narrative;
         recognitionRef.current.lang = voiceLang;
         recognitionRef.current.start();
         setIsRecording(true);
