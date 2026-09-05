@@ -1,232 +1,328 @@
 # Surakhsa — Cyber Crime Reporting Portal
 
-An accessible, rapid-action citizen portal redesign for reporting cyber crimes in India, based on the **UX4G Design System** and built on **Next.js App Router** with a **MongoDB** persistence layer.
+> **Tell us what happened. We will handle the paperwork.**  
+> Next-Generation Citizen-Centric Cyber Crime Reporting & Rapid Triage Portal.
 
-![Surakhsa Portal Preview](./public/images/surakhsa_preview.jpg)
-
-> [!WARNING]
-> **Independent hackathon prototype.** This project is not affiliated with, endorsed by, or connected to the Government of India, the Ministry of Home Affairs, or I4C. In a real emergency, dial **1930** or visit [cybercrime.gov.in](https://cybercrime.gov.in/).
+![Surakhsa Portal Preview](./public/images/surakhsa_preview.png)
 
 ---
 
-## 1. Summary of Changes: What Was Broken vs. What Was Fixed
-
-| Component / Area | Initial Cloned State | Fixed & Implemented State |
-| :--- | :--- | :--- |
-| **Top Bar Controls** | Static buttons with no event handlers (`aria-pressed="false"` hardcoded, dead language button, static text size controls). | Fully functional: Assisted mode toggle, Language selector dropdown (6 Indian languages), immediate text scaling (`A-`, `A`, `A+`), and auth entry point. |
-| **Assisted Mode** | Visual button only, no actual step-by-step or questionnaire flow. | Complete 5-step MCQ guided questionnaire (`g.q1` through `g.q5`), voice read-aloud via Web Speech API, sentence chunking, dynamic high-contrast large-font UI styling (`html[data-assist="on"]`), and mode switching banner. |
-| **Authentication** | Missing sign-in links or non-functional routes. | Complete end-to-end phone number entry (`/signin`), deterministic simulated OTP generator with 1-click test fill, secure session cookies, MongoDB session tracking, and masked phone display (`98xxxxx210`) with sign-out. |
-| **Reporting Flow** | Basic static form or dummy inputs with no category mapping or banking freeze integration. | Intelligent multi-step state machine: Guided MCQ or multilingual free-text input with speech recognition, automatic NCRP cybercrime classification (30 official categories), Golden-Hour banking freeze form (6 key fields), client-side SHA-256 evidence hashing, and submission into MongoDB. |
-| **Complaint Tracking** | In-memory or dummy view with no database search. | Real data-driven tracking via Acknowledgement Number (`ACK-YYYY-XXXXXX`) queried directly from MongoDB `complaints` collection, Right to Service statutory SLA timeline calculation, and verified user complaint history. |
-| **Suspect Check** | Static placeholder without database storage or reporting. | Real-time string analysis for phishing domains (punycode, fake bank subdomains), suspicious UPI VPAs, and international phone numbers. Suspect check logs and citizen suspect reports persisted in MongoDB with `SUS-XXXXXX` references. |
-| **Database & Persistence** | In-memory or SQLite dependencies. | 100% native **MongoDB** persistence using the official MongoDB driver with connection pooling. Inspectable using **MongoDB Compass**. |
+## 1. Project Title
+**Surakhsa (सुरक्षा)** — An accessible, rapid-action citizen portal redesign for reporting cyber crimes in India.
 
 ---
 
-## 2. Architecture & Backend Design
-
-### MongoDB Setup
-The backend connects to MongoDB using the official Node driver with connection pooling and singleton caching for development hot-reloading:
-
-- **Default Local MongoDB URI**: `mongodb://127.0.0.1:27017/surakhsa`
-- **Cloud / Production MongoDB URI**: `mongodb+srv://<user>:<password>@cluster0.mongodb.net/surakhsa?retryWrites=true&w=majority`
-- **Database Name**: `surakhsa`
-
-### Collections Schema:
-1. **`users`**:
-   - `phone` (string, unique)
-   - `createdAt` (date)
-   - `lastLoginAt` (date)
-2. **`sessions`**:
-   - `token` (string, secure 32-byte hex)
-   - `phone` (string)
-   - `createdAt` (date)
-   - `expiresAt` (date, 30-day sliding expiry)
-3. **`complaints`**:
-   - `ack` (string, e.g. `ACK-2026-481902`)
-   - `phone` (optional string, linked if citizen signed in)
-   - `categoryId` & `categoryLabel` (official NCRP category)
-   - `parentCategory` ("Financial Fraud" | "Women/Children" | "Other Cyber Crime")
-   - `urgency` ("golden-hour" | "urgent" | "standard")
-   - `narrative` (plain language incident description)
-   - `amount` (numeric loss in INR)
-   - `bankName`, `bankAccount`, `transactionId`
-   - `freezeRequested` (boolean)
-   - `stage` (numeric 1-5 case stage)
-   - `createdAt` (timestamp)
-   - `evidenceFiles` (`[{ name, size, sha256 }]`)
-4. **`complaint_drafts`**:
-   - `draftId` (string)
-   - `phone` (optional string)
-   - `step` (string)
-   - `data` (object)
-   - `updatedAt` (timestamp)
-5. **`suspect_checks`**:
-   - `query` (string)
-   - `kind` ("url" | "upi" | "phone" | "email")
-   - `verdict` ("danger" | "warning" | "ok" | "unclear")
-   - `reasons` (string array)
-   - `checkedAt` (timestamp)
-6. **`suspect_reports`**:
-   - `ref` (string, e.g. `SUS-192841`)
-   - `suspectValue` (string)
-   - `reason` (string)
-   - `phone` (optional string)
-   - `createdAt` (timestamp)
-7. **`settings`**:
-   - `key` (string)
-   - `value` (any)
-   - `updatedAt` (timestamp)
+## 2. Tagline
+*Empowering citizens during the critical "Golden Hour" of financial fraud with instant triage, guided reporting, and transparent SLA tracking.*
 
 ---
 
-## 3. MongoDB Compass Usage Guide
-
-You can inspect, query, and verify the backend data directly in **MongoDB Compass**:
-
-1. Launch **MongoDB Compass**.
-2. Connect to the connection string:
-   ```text
-   mongodb://localhost:27017
-   ```
-   *(or your MongoDB Atlas connection string)*.
-3. In the left database navigation pane, select the **`surakhsa`** database.
-4. You will see the collections:
-   - Click **`complaints`** to view all filed cybercrime reports, their assigned ACK numbers, amounts, and audit timestamps.
-   - Click **`users`** and **`sessions`** to verify active user login states and tokens.
-   - Click **`suspect_checks`** and **`suspect_reports`** to inspect analyzed URLs, UPI IDs, and citizen suspect submissions.
+## 3. Short Project Overview
+**Surakhsa** is a modern reimagining of India's National Cyber Crime Reporting Portal (NCRP / 1930), designed using the **UX4G Design System** and built on **Next.js App Router** with a **MongoDB** persistence layer. It eliminates bureaucratic intimidation by translating plain citizen narratives into official NCRP categories, instantly prioritizing banking freeze interventions, and providing accessible step-by-step reporting for all citizens regardless of language, literacy, or digital experience.
 
 ---
 
-## 4. Top Bar Controls & Preferences Persistence
-
-- **Assisted Mode**:
-  - Toggled from the top bar button or landing page banner.
-  - Sets `<html data-assist="on">` and stores preference in `localStorage` under `surakhsa.assist.v1`.
-  - Automatically scales touch targets (`min-height: 54px`), enlarges typography (20px body font, 1.7 line-height), activates high-contrast focus rings, and switches `/report` to the 5-step MCQ questionnaire.
-- **Language Selector**:
-  - Supports: **English**, **हिन्दी** (Hindi), **বাংলা** (Bengali), **मराठी** (Marathi), **தமிழ்** (Tamil), and **తెలుగు** (Telugu).
-  - Persisted in `localStorage` under `surakhsa.lang.v1` and sets `<html lang="...">`.
-  - Backed by an authentic dictionary of extracted translations (`src/lib/i18n.ts`).
-- **Text Size**:
-  - `A-` (Small, 14px), `A` (Base, 16px), `A+` (Large, 18px).
-  - Persisted in `localStorage` under `surakhsa.textsize.v1` and sets `<html data-textsize="...">`.
-- **Authentication Header State**:
-  - When logged out: shows `Sign in` linking to `/signin`.
-  - When logged in: displays masked mobile number (e.g. `98xxxxx210`) with an immediate `Sign out` action.
+## 4. Problem Statement
+1. **The "Golden Hour" Dilemma**: In digital financial fraud (UPI scams, phishing, unauthorized debits), the first 60–120 minutes determine whether stolen funds can be frozen before leaving the banking switch. Complex legacy complaint forms cause critical delays.
+2. **Cognitive Burden on Victims**: Victims are stressed and unfamiliar with Indian Penal Code sections or technical cybercrime categories (e.g., distinguishing "VPA Spoofing" from "Card Skimming").
+3. **Accessibility & Regional Exclusion**: Non-English speakers, senior citizens, and first-time smartphone users face steep barriers filing text-heavy online complaints.
+4. **Lack of Transparent Case Tracking**: Citizens receive complaint numbers but lack clear visibility into statutory Right to Service timelines and investigation milestones.
 
 ---
 
-## 5. Reporting Journey & Assisted Mode Flow
-
-The citizen reporting journey supports two interchangeable modes:
-
-### A. Assisted Mode (Questionnaire Flow)
-1. **Question 1 (Contact Channel)**: Phone call, WhatsApp/SMS, Social media, Email, Website/app, In person.
-2. **Question 2 (What happened)**: Shared OTP/PIN, Installed app, Clicked link & entered bank details, Transferred money, Threatening with private photos, Nothing yet.
-3. **Question 3 (Money Movement)**: Yes / No. If Yes, requests approximate amount with rupee formatting (`₹ 50,000`).
-4. **Question 4 (Timing)**: In the last hour, Earlier today, In the last few days, More than a week ago.
-5. **Question 5 (Additional details)**: Optional open text field.
-6. **Summary & Read Aloud**: Synthesizes a structured incident narrative with one-click **Read Aloud** speech narration (`SpeechSynthesis`).
-7. **Confirmation**: Sends the synthesized statement to the official triage classifier.
-
-### B. Standard Mode
-- Free-text textarea supporting English, Hindi, and Hinglish.
-- Native speech-to-text voice input via browser SpeechRecognition.
-- Quick test templates: "UPI fraud", "Hinglish", "Impersonation".
-
-### Downstream Steps (Both Flows):
-- **Triage & Classification**: Rule-based matching against official Indian NCRP categories (UPI Fraud, Phishing, Investment Scam, Task Scam, Sextortion, etc.) with category override capabilities.
-- **Golden-Hour Bank Freeze**: Captures the essential 6 bank routing fields (Citizen bank/app, Debited account/UPI, Suspect account/UPI, Transaction UTR, Amount) and simulates immediate CFCFRMS network transmission.
-- **Evidence Verification**: Calculates real cryptographic SHA-256 hashes for all uploaded evidence attachments in the browser using the Web Crypto API (`window.crypto.subtle.digest`).
-- **Acknowledgement**: Submits to MongoDB and returns an official Acknowledgement Number (e.g. `ACK-2026-481902`).
+## 5. What the Product Does
+- **Speeds Up Emergency Interventions**: Prioritizes urgent banking freeze requests directly through an expedited intake flow with automated Golden-Hour warnings.
+- **Translates Plain Language to Legal Categories**: Converts natural-language descriptions (in English, Hindi, and regional phrases) into 30+ official NCRP classifications.
+- **Assisted 5-Step Guided Reporting**: Provides an alternative multiple-choice question (MCQ) questionnaire with built-in voice read-aloud (`SpeechSynthesis`).
+- **Verifies Evidence Integrity**: Generates cryptographic SHA-256 hashes client-side for all attached evidence files.
+- **Tracks Complaints Transparently**: Looks up case status by Acknowledgement Number (`ACK-YYYY-XXXXXX`) with statutory SLA calculations.
+- **Proactive Suspect Screening**: Allows citizens to check suspicious UPI IDs, URLs, and phone numbers before sending money.
 
 ---
 
-## 6. Complaint Tracking Flow (`/track`)
+## 6. User Workflow / Journey
 
-- **Search by ACK Number**: Enter any valid Acknowledgement Number to retrieve stored records from MongoDB.
-- **Right to Service Act Statutory SLA**: Displays calculated remaining days (15-day statutory SLA) and current handling cyber unit.
-- **Data-Driven Timeline**: Shows progression through Complaint Registration, Banking Freeze hold, Investigating Officer assignment, and Final Resolution.
-- **Citizen Dashboard**: When logged in, automatically queries and displays all complaints filed by the citizen's mobile number.
-
----
-
-## 7. Suspect Repository (`/check`)
-
-- **Instant Pattern Analysis**:
-  - Deceptive UPI handles (e.g. `refund`, `support` keywords).
-  - Phishing & Homograph URL attacks (`xn--` punycode detection, bank typosquatting, brand-in-subdomain).
-  - High-risk international calling prefixes (`+92`, `+234`, `+1876`).
-- **Suspect Reporting**: Submit suspect identifiers and incident reasons to the national repository in MongoDB with an official `SUS-XXXXXX` reference number.
-
----
-
-## 8. What Remains Simulated
-
-To ensure complete transparency (consistent with the prototype's `/about` page):
-- **SMS Delivery**: OTP generation is deterministic and printed on-screen for frictionless demonstration testing. No paid telecom SMS gateway is connected.
-- **Bank Payment Network**: Bank freeze requests simulate the CFCFRMS / 1930 routing protocol with real timeouts and status tracking, but no live banking core switches are contacted.
-- **Evidence Files**: Files are hashed on the client using real SHA-256 cryptography to demonstrate chain-of-custody integrity, but heavy binary file uploads are not transferred to an external S3 bucket.
-
----
-
-## 9. Deployment Guide (Vercel)
-
-The repository has been structured and sanitized so it builds and runs smoothly on **Vercel**.
-
-### Step 1: Set Up MongoDB Atlas (Free Cloud Database)
-Because Vercel serverless functions cannot connect to `localhost:27017`, you need a cloud MongoDB connection string:
-1. Go to [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) and create a free Shared Cluster (M0).
-2. Under **Database Access**, create a database user and password.
-3. Under **Network Access**, add `0.0.0.0/0` (Allow access from anywhere) so Vercel serverless functions can connect.
-4. Click **Connect** > **Drivers** to copy your connection string:
-   ```text
-   mongodb+srv://<username>:<password>@cluster0.xxxxxx.mongodb.net/surakhsa?retryWrites=true&w=majority
-   ```
-
-### Step 2: Configure Environment Variables in Vercel
-In your Vercel project dashboard:
-1. Navigate to **Settings** > **Environment Variables**.
-2. Add the following variables:
-   - `MONGODB_URI`: Your MongoDB Atlas connection string from Step 1.
-   - `MONGODB_DB`: `Saarthi` (or your preferred database name).
-   - `JWT_SECRET`: Any random secure secret key (e.g. `surakhsa_super_secret_jwt_key_2026`).
-   - `NEXT_PUBLIC_APP_URL`: Your Vercel deployment URL (e.g. `https://casepath-two.vercel.app`).
-3. Click **Save** and trigger a **Redeploy** on your latest deployment.
-
-### Step 3: Verify Stored Complaints in MongoDB Atlas
-To verify that complaints submitted from either local or Vercel are safely stored in your cloud MongoDB database, run:
-
-```bash
-npm run db:check
+```text
+[ Citizen Landing ]
+        │
+        ├── Standard Mode (Free text / Voice speech input)
+        └── Assisted Mode (5-step guided questionnaire + Read Aloud)
+        │
+        ▼
+[ Intelligent Triage & NCRP Categorization ]
+        │
+        ▼
+[ Golden-Hour Emergency Action ] ─── (If Financial Loss: Captures Bank/UPI & UTR)
+        │
+        ▼
+[ Cryptographic Evidence Hashing (SHA-256) ]
+        │
+        ▼
+[ Official NCRP Acknowledgement Generated: ACK-YYYY-XXXXXX ]
+        │
+        ▼
+[ Stored in MongoDB Repository ] ─── (Resilient Fallback Cache)
+        │
+        ▼
+[ Real-Time Tracking & SLA Monitoring (/track) ]
 ```
 
 ---
 
-## 10. Local Development
+## 7. Core Features
 
-### 1. Start Local App
+| Feature | Description | Citizen / Administrative Benefit |
+| :--- | :--- | :--- |
+| **Golden-Hour Freeze Capture** | Dedicated capture for citizen bank, debit account/UPI, suspect handle, UTR, and loss amount. | Transmits essential payment switch data required by 1930 / CFCFRMS nodal officers. |
+| **Assisted Mode (Guided MCQ)** | 5-step intuitive multiple-choice flow with dynamic sentence synthesis and voice narration. | Zero typing required; tailored for non-tech-savvy users and elderly citizens. |
+| **Natural Language Triage** | Rule-based classifier mapping symptoms to official NCRP taxonomy with loss amount detection. | Eliminates wrong category selection and accelerates police station routing. |
+| **Top Bar Accessibility Controls** | Instant language switching (6 languages), text scaling (`A-`, `A`, `A+`), and high-contrast assistance toggle. | Compliant with Government of India UX4G accessibility standards. |
+| **Data-Driven Case Tracking** | Direct database lookup by ACK number displaying case stage, assigned cyber unit, and remaining SLA days. | Replaces opaque complaint status with an accountable investigation timeline. |
+| **Suspect Intelligence Check** | Real-time heuristics identifying homograph phishing links, suspicious UPI patterns, and international prefixes. | Proactively prevents fraud before transactions occur. |
+
+---
+
+## 8. Screenshots / UI Images
+
+### Homepage & Hero Showcase
+![Homepage Preview](./public/images/surakhsa_preview.png)
+
+### Report Flow
+<!-- TODO: Add screenshot of Report Flow & Golden-Hour Form here -->
+> *Placeholder: Screenshots of the multi-step report flow, narrative input, and Golden-Hour bank freeze alert form.*
+
+### Case Tracking Flow (`/track`)
+<!-- TODO: Add screenshot of Case Tracking & SLA Timeline here -->
+> *Placeholder: Screenshots of Acknowledgement Number search, case stage progression, and SLA timeline display.*
+
+### Assisted Mode & Mobile Sign-In
+<!-- TODO: Add screenshot of Assisted Mode MCQ and Sign-in here -->
+> *Placeholder: Screenshots of the 5-step MCQ questionnaire, voice read-aloud buttons, and OTP verification.*
+
+---
+
+## 9. Architecture Overview
+
+```text
+┌─────────────────────────────────────────────────────────────┐
+│                      Client Layer                           │
+│  Next.js 16 (Turbopack) • React 19 • TailwindCSS v4 • UX4G  │
+│  Context Providers (AssistMode, Language, TextSize, Auth)   │
+│  Web Crypto API (SHA-256) • Web Speech API (TTS & Voice)    │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ Server Actions & API Routes
+┌──────────────────────────────▼──────────────────────────────┐
+│                      Application Server                     │
+│  • Triage & Classification Engine (src/lib/triage.ts)       │
+│  • SLA & Timeline Engine (src/lib/timeline.ts)              │
+│  • Resilient Multi-tier Store with 4s Connection Timeout    │
+└──────────────────────────────┬──────────────────────────────┘
+                               │ MongoDB Driver v7.6
+┌──────────────────────────────▼──────────────────────────────┐
+│                      Database Layer                         │
+│  MongoDB Atlas (Cloud) / Local MongoDB                      │
+│  Collections: complaints, users, sessions, suspect_reports   │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 10. Tech Stack
+
+| Layer | Technology | Version | Purpose |
+| :--- | :--- | :--- | :--- |
+| **Framework** | Next.js (App Router) | `16.3.4` | SSR, Server Actions, Client Components, Turbopack |
+| **Library** | React | `19.2.8` | Component architecture and state hydration |
+| **Language** | TypeScript | `^5.0` | End-to-end static typing and schema verification |
+| **Styling** | Vanilla CSS + TailwindCSS | `^4.0` | UX4G government design tokens and responsive layouts |
+| **Database** | MongoDB Native Driver | `^7.6.0` | Document persistence and query execution |
+| **Icons** | Lucide React | `^1.40.0` | Accessible vector iconography |
+| **Security** | Jose & Web Crypto | `^6.2.10` | JWT verification and SHA-256 evidence hashing |
+| **Test Runner** | Node.js Native Runner | `node:test` | Automated regression and classification testing |
+
+---
+
+## 11. Project Structure
+
+```text
+├── public/                     # Static assets and preview images
+│   └── images/
+│       └── surakhsa_preview.png # Real portal screenshot
+├── src/
+│   ├── actions/                # Next.js Server Actions
+│   │   ├── auth.ts             # Sign-in & OTP verification
+│   │   ├── check.ts            # Suspect check & reporting
+│   │   ├── report.ts           # Complaint filing & banking freeze
+│   │   └── track.ts            # ACK tracking & user complaints
+│   ├── app/                    # App Router pages and layouts
+│   │   ├── check/              # Suspect lookup portal
+│   │   ├── report/             # Multi-step complaint journey
+│   │   ├── signin/             # Phone OTP sign-in
+│   │   ├── track/              # Live case tracking
+│   │   ├── layout.tsx          # Root layout with top bar & footer
+│   │   └── page.tsx            # Portal landing page
+│   ├── components/             # Reusable UI & Layout components
+│   │   ├── layout/             # Header, Top Bar, Footer
+│   │   ├── report/             # GuidedReport (5-step MCQ flow)
+│   │   └── ui/                 # Button, Card, Badge, ReadAloud
+│   ├── context/                # Accessibility & Session Contexts
+│   │   ├── AccountContext.tsx  # User auth state
+│   │   ├── AssistContext.tsx   # Assisted Mode toggle
+│   │   ├── LanguageContext.tsx # 6-language switcher
+│   │   └── TextSizeContext.tsx # Text scaling (A-, A, A+)
+│   └── lib/                    # Core business logic & database
+│       ├── i18n.ts             # Multilingual translations dictionary
+│       ├── mongodb.ts          # MongoDB client & resilient fallback
+│       ├── timeline.ts         # SLA & event gap duration formatters
+│       └── triage.ts           # Rule-based NCRP categorization engine
+├── tests/
+│   └── suite.test.ts           # 10 automated end-to-end unit tests
+├── scripts/
+│   └── check_mongo.js          # Direct MongoDB Atlas verification tool
+├── .env.example                # Sanitized environment template
+├── .gitignore                  # Production exclusion rules
+├── package.json                # Dependencies and npm scripts
+├── README.md                   # Project documentation
+└── tsconfig.json               # TypeScript configuration
+```
+
+---
+
+## 12. Setup Instructions
+
+### Prerequisites
+- **Node.js**: v20.x or v22.x installed.
+- **Package Manager**: `npm` (v10+).
+- **MongoDB** (Optional for local): Either local MongoDB (`mongodb://127.0.0.1:27017`) or a free [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) cluster URI.
+
+### Installation
 ```bash
+# 1. Clone the repository
+git clone https://github.com/Rithwik-Ravi/Fraud-Case-Tracker.git
+cd Fraud-Case-Tracker
+
+# 2. Install dependencies
 npm install
+```
+
+---
+
+## 13. Environment Variables
+
+Create a `.env.local` file in the root directory (based on `.env.example`):
+
+```env
+# MongoDB Atlas or local MongoDB URI
+MONGODB_URI="mongodb+srv://<username>:<password>@cluster0.mongodb.net/surakhsa?retryWrites=true&w=majority"
+
+# Database Name
+MONGODB_DB="Saarthi"
+
+# Secret Key for secure session cookies
+JWT_SECRET="surakhsa_super_secret_jwt_key_hackathon_2026"
+
+# Canonical App URL
+NEXT_PUBLIC_APP_URL="http://localhost:3000"
+```
+
+| Variable | Required | Description | Example |
+| :--- | :---: | :--- | :--- |
+| `MONGODB_URI` | Yes | MongoDB Atlas connection string | `mongodb+srv://user:pass@cluster.mongodb.net/...` |
+| `MONGODB_DB` | Optional | Database name (defaults to `surakhsa`) | `Saarthi` |
+| `JWT_SECRET` | Yes | Secret used for cookie signing | `your_random_secret_string` |
+| `NEXT_PUBLIC_APP_URL`| Optional | Deployment host URL | `https://casepath-two.vercel.app` |
+
+---
+
+## 14. How to Run Locally
+
+### Start Development Server
+```bash
 npm run dev
 ```
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### 2. Verify Database Connection
-```bash
-npm run db:check
-```
-This connects to your configured MongoDB database, validates schema collections, and displays the latest stored complaint records.
-
-### 3. Run Automated Test Suite
+### Run Automated Test Suite
 ```bash
 npm test
 ```
-Runs the full suite of triage, classification, timeline/SLA, and taxonomy verification tests:
-- Event gap and duration formatting
-- Statutory SLA stage naming
-- Taxonomy consistency and parent categorizations
-- Keyword reachability & held-out narrative classification accuracy (>= 90%)
-- Child-safety routing & hostile input protection
+Executes all 10 unit and regression tests (classification, SLA duration formatting, taxonomy consistency, and hostile input resistance).
 
+### Check MongoDB Connection & Saved Records
+```bash
+npm run db:check
+```
+Connects to your active MongoDB Atlas cluster and prints stored complaint records and collection statistics.
+
+---
+
+## 15. How to Deploy (Vercel)
+
+1. Import the repository into your [Vercel Dashboard](https://vercel.com).
+2. Under **Project Settings** > **Environment Variables**, add:
+   - `MONGODB_URI`
+   - `MONGODB_DB`
+   - `JWT_SECRET`
+   - `NEXT_PUBLIC_APP_URL`
+3. Click **Deploy**. Vercel will run `next build` and deploy the serverless application.
+
+---
+
+## 16. Backend & Database Notes
+
+- **Native Driver with Singleton Pooling**: Uses `mongodb` v7.6 with cached client promises to avoid socket leaks across serverless function invocations.
+- **Zero-Failure Resiliency**: When running in preview environments or during database cold starts, the server actions catch connection timeouts (4-second ceiling) and seamlessly fall back to an active memory cache, guaranteeing the citizen always receives their ACK confirmation.
+- **Collections**:
+  - `complaints`: Contains incident narrative, categorized IDs, loss amounts, banking freeze routing data, and evidence metadata.
+  - `users` & `sessions`: Manages citizen sign-in and session tokens.
+  - `suspect_reports` & `suspect_checks`: Stores suspect domains, UPI handles, and citizen community reports.
+
+---
+
+## 17. What is Mocked vs. Real
+
+| Component / Functionality | Status | Details |
+| :--- | :---: | :--- |
+| **MongoDB Atlas Persistence** | **REAL** | Real database queries, insertions, and document lookups. |
+| **Natural Language Triage** | **REAL** | Algorithmic classification mapping input to 30+ official NCRP categories. |
+| **Client Evidence Hashing** | **REAL** | Cryptographic SHA-256 calculation in the browser via `window.crypto.subtle`. |
+| **Voice Narration (Read Aloud)** | **REAL** | Browser Web Speech API (`SpeechSynthesis`) with sentence chunking. |
+| **Accessibility & Localization** | **REAL** | Live switching across 6 Indian languages and dynamic text scaling (`A-`, `A`, `A+`). |
+| **Automated Test Suite** | **REAL** | 10 passing tests running natively via `node:test`. |
+| **SMS OTP Transmission** | *MOCKED* | OTP is generated deterministically and displayed on-screen for test convenience. No telecom gateway attached. |
+| **1930 / CFCFRMS Banking Switch** | *MOCKED* | Simulates network acknowledgment latency; does not contact live RBI/NPCI core banking servers. |
+| **Evidence Binary Cloud Storage** | *MOCKED* | Files are hashed client-side for audit trail, but raw multi-megabyte binaries are not uploaded to an S3 bucket. |
+
+---
+
+## 18. Limitations
+- Classification relies on refined keyword heuristics rather than a fine-tuned heavy transformer model (optimized for zero-latency execution in serverless runtimes).
+- Evidence files are verified via hash but binary files are not persisted to cloud object storage.
+- Regional language translations in the current build focus on core portal strings, forms, and alerts.
+
+---
+
+## 19. Future Improvements / Next Steps
+- [ ] **Conversational Regional AI Voice Bot**: Integrate a multilingual speech-to-speech agent for voice-only reporting in rural dialects.
+- [ ] **DigiLocker / Aadhaar e-KYC**: One-click verified identity prefill for citizen complaints.
+- [ ] **NPCI / RBI CMS Webhook Integration**: Real-time webhook dispatch directly to bank fraud nodal desks.
+- [ ] **WhatsApp / Telegram Incident Intake**: Filing incident reports via an authenticated official chatbot.
+
+---
+
+## 20. Team & Acknowledgements
+- **Team**: <!-- TODO: Add team member names, roles, and GitHub profiles -->
+- **Design Reference**: Inspired by the **UX4G (User Experience for Government)** Design System, India.
+- **Guidelines**: Modeled after National Cyber Crime Reporting Portal (NCRP) and Indian Cyber Crime Coordination Centre (I4C / MHA) public documentation.
+
+---
+
+## 21. License & Disclaimer
+
+> [!WARNING]
+> **Independent Hackathon Prototype.**  
+> This project is a proof-of-concept prototype built for competition and educational purposes. It is **not** affiliated with, endorsed by, or connected to the Government of India, the Ministry of Home Affairs (MHA), or the Indian Cyber Crime Coordination Centre (I4C).
+>
+> In an actual emergency or if you are a victim of cybercrime, immediately dial **1930** or register your complaint on the official portal at [cybercrime.gov.in](https://cybercrime.gov.in/).
+
+Licensed under the [MIT License](LICENSE) <!-- TODO: Verify license preference -->.
