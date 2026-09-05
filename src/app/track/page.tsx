@@ -255,7 +255,7 @@ function TrackContent() {
                   </div>
                 </div>
 
-                {/* Stage 4: Resolution */}
+                {/* Stage 5: Resolution */}
                 <div className="relative">
                   <div className={`absolute -left-[35px] grid h-7 w-7 place-items-center rounded-full ${
                     searchedComplaint.stage >= 5 ? "bg-success-500 text-white" : "bg-ink-200 text-ink-600"
@@ -269,6 +269,44 @@ function TrackContent() {
                     </p>
                   </div>
                 </div>
+
+                {/* Stage 6: Money Restoration Module */}
+                <div className="relative">
+                  <div className={`absolute -left-[35px] grid h-7 w-7 place-items-center rounded-full ${
+                    searchedComplaint.stage >= 6 ? "bg-success-500 text-white" : "bg-ink-100 text-ink-400"
+                  } shadow-sm`}>
+                    <Landmark className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-ink-900">
+                      Money Restoration Module (MRM) Review
+                    </h3>
+                    <p className="text-xs text-ink-600 mt-0.5">
+                      Case escalated to MRM for fund recovery assessment.{" "}
+                      <span className="rounded bg-brand-50 px-1 py-0.5 font-semibold text-brand-700">
+                        New · MHA policy April 2026
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Stage 7: Funds Restored */}
+                <div className="relative">
+                  <div className={`absolute -left-[35px] grid h-7 w-7 place-items-center rounded-full ${
+                    searchedComplaint.stage >= 7 ? "bg-success-600 text-white" : "bg-ink-100 text-ink-400"
+                  } shadow-sm`}>
+                    <CheckCircle2 className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-ink-900">
+                      Funds Restored to Victim Account
+                    </h3>
+                    <p className="text-xs text-ink-600 mt-0.5">
+                      Confirmed transfer of recovered funds back to the victim&apos;s bank account via nodal officer.
+                    </p>
+                  </div>
+                </div>
+
               </div>
             </div>
 

@@ -17,7 +17,6 @@ import {
   TriageResult,
 } from "@/lib/triage";
 import {
-  triageIncidentAction,
   requestFreezeAction,
   submitComplaintAction,
 } from "@/actions/report";
@@ -35,6 +34,9 @@ import {
   Copy,
   Check,
   UploadCloud,
+  Download,
+  Cpu,
+  Bot,
 } from "lucide-react";
 
 type ReportStep = "NARRATIVE" | "FREEZE" | "EVIDENCE" | "REVIEW" | "SUCCESS";
@@ -93,6 +95,86 @@ export default function ReportPage() {
   useEffect(() => {
     setUseGuided(assist);
   }, [assist]);
+
+  // PDF download helper
+  const downloadPdf = async () => {
+    if (!ackNumber) return;
+    const { jsPDF } = await import("jspdf");
+    const doc = new jsPDF({ unit: "mm", format: "a4" });
+    const pageW = doc.internal.pageSize.getWidth();
+
+    // Header
+    doc.setFillColor(31, 91, 152);
+    doc.rect(0, 0, pageW, 28, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(255, 255, 255);
+    doc.text("Surakhsa — Complaint Confirmation", 14, 12);
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.text("Independent Hackathon Prototype · Not an official government document", 14, 20);
+
+    // Body
+    doc.setTextColor(26, 35, 50);
+    let y = 36;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("Acknowledgement Number", 14, y); y += 6;
+    doc.setFontSize(18);
+    doc.setTextColor(31, 91, 152);
+    doc.text(ackNumber, 14, y); y += 10;
+    doc.setTextColor(26, 35, 50);
+
+    const row = (label: string, value: string) => {
+      doc.setFont("helvetica", "bold"); doc.setFontSize(9);
+      doc.text(label, 14, y);
+      doc.setFont("helvetica", "normal");
+      doc.text(value, 70, y);
+      y += 7;
+    };
+
+    row("Filed at:", new Date().toLocaleString("en-IN"));
+    if (selectedCategory) {
+      row("Category:", selectedCategory.label);
+      row("Parent:", selectedCategory.parent);
+    }
+    if (triageResult) {
+      row("Urgency:", triageResult.urgency);
+      row("Classification:", triageResult.source === "ai" ? "AI-assisted (gpt-4o-mini)" : "Rule-based engine");
+    }
+    if (amount) {
+      row("Reported Loss:", `\u20B9${Number(amount).toLocaleString("en-IN")}`);
+    }
+    if (freezeRequested) {
+      row("Bank Freeze:", "Dispatched via 1930 / CFCFRMS");
+    }
+
+    if (evidenceFiles.length > 0) {
+      y += 4;
+      doc.setFont("helvetica", "bold"); doc.setFontSize(9);
+      doc.text("Evidence SHA-256 Digests:", 14, y); y += 6;
+      evidenceFiles.forEach((f) => {
+        doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+        const line = `${f.name}: ${f.sha256.slice(0, 32)}...`;
+        doc.text(line, 14, y); y += 5;
+      });
+    }
+
+    // Footer
+    const pageH = doc.internal.pageSize.getHeight();
+    doc.setFillColor(245, 247, 250);
+    doc.rect(0, pageH - 18, pageW, 18, "F");
+    doc.setFont("helvetica", "italic"); doc.setFontSize(7.5);
+    doc.setTextColor(90, 110, 132);
+    doc.text(
+      "Not an official government record. For a legally recognized complaint, visit cybercrime.gov.in or call 1930.",
+      14, pageH - 10
+    );
+
+    doc.save(`Surakhsa-Complaint-${ackNumber}.pdf`);
+  };
+
 
   // Speech Recognition setup
   useEffect(() => {
@@ -157,28 +239,37 @@ export default function ReportPage() {
     setTriageLoading(true);
 
     try {
-      const res = await triageIncidentAction(textToTriage);
-      if (res.error) {
-        setErrorMessage(res.error);
-      } else if (res.result) {
-        const result = res.result;
-        setTriageResult(result);
+      // Call /api/triage — OpenAI-assisted when key is present, deterministic fallback otherwise
+      const res = await fetch("/api/triage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ narrative: textToTriage }),
+      });
 
-        const cat = CATEGORIES.find((c) => c.id === result.categoryId) || CATEGORIES[0];
-        setSelectedCategory(cat);
+      if (!res.ok) throw new Error(`Triage API error ${res.status}`);
+      const result: TriageResult = await res.json();
 
-        if (presetAmount) {
-          setAmount(presetAmount.toString());
-        } else if (result.detectedAmount) {
-          setAmount(result.detectedAmount.toString());
-        }
+      // Digital Arrest interrupt — redirect immediately
+      if (result.isDigitalArrest) {
+        window.location.href = "/digital-arrest?continue=true";
+        return;
+      }
 
-        // Advance to next step
-        if (result.isFinancialFraud && result.moneyMoved) {
-          setCurrentStep("FREEZE");
-        } else {
-          setCurrentStep("EVIDENCE");
-        }
+      setTriageResult(result);
+      const cat = CATEGORIES.find((c) => c.id === result.categoryId) || CATEGORIES[0];
+      setSelectedCategory(cat);
+
+      if (presetAmount) {
+        setAmount(presetAmount.toString());
+      } else if (result.detectedAmount) {
+        setAmount(result.detectedAmount.toString());
+      }
+
+      // Advance to next step
+      if (result.isFinancialFraud && result.moneyMoved) {
+        setCurrentStep("FREEZE");
+      } else {
+        setCurrentStep("EVIDENCE");
       }
     } catch {
       setErrorMessage("Classification service error. Please try again.");
@@ -345,6 +436,7 @@ export default function ReportPage() {
             </div>
           )}
 
+          {/* Actions */}
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link
               href={`/track?ack=${ackNumber}`}
@@ -353,6 +445,15 @@ export default function ReportPage() {
               <span>Track this Complaint</span>
               <ArrowRight className="h-4 w-4" />
             </Link>
+
+            <button
+              type="button"
+              onClick={downloadPdf}
+              className="ux-target inline-flex items-center gap-2 rounded-ux border-2 border-brand-500 bg-white px-5 py-3 text-base font-semibold text-brand-700 hover:bg-brand-50 transition w-full sm:w-auto justify-center"
+            >
+              <Download className="h-4 w-4" />
+              <span>Download Confirmation PDF</span>
+            </button>
 
             <button
               type="button"
@@ -375,6 +476,23 @@ export default function ReportPage() {
               <span>File another report</span>
             </button>
           </div>
+
+          {/* AI classification source badge */}
+          {triageResult?.source && (
+            <div className="mt-6 flex justify-center">
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ${
+                triageResult.source === "ai"
+                  ? "bg-brand-50 text-brand-700 ring-1 ring-brand-200"
+                  : "bg-ink-50 text-ink-600 ring-1 ring-ink-200"
+              }`}>
+                {triageResult.source === "ai" ? (
+                  <><Bot className="h-3.5 w-3.5" /> AI-assisted classification (gpt-4o-mini)</>
+                ) : (
+                  <><Cpu className="h-3.5 w-3.5" /> Rule-based classification engine</>
+                )}
+              </span>
+            </div>
+          )}
         </div>
       </div>
     );

@@ -73,12 +73,15 @@
 
 | Feature | Description | Citizen / Administrative Benefit |
 | :--- | :--- | :--- |
+| **Digital Arrest Circuit-Breaker** | Immediate high-priority intercept (`/digital-arrest`) for citizens facing fake CBI/ED/police video calls. | Stops immediate fund transfer coerced by scammers; provides instant emergency steps and legal truth. |
+| **Hybrid AI & Heuristic Triage** | OpenAI `gpt-4o-mini` semantic classification with seamless deterministic fallback. | Accurately understands complex multi-lingual colloquial narratives while guaranteeing zero downtime. |
+| **Screenshot Threat Scanner** | Vision-based scam analyzer (`gpt-4o`) extracting UPIs, URLs, phone numbers, and bank accounts from screenshots. | Allows non-technical citizens to simply upload a scam chat or payment receipt for instant analysis. |
 | **Golden-Hour Freeze Capture** | Dedicated capture for citizen bank, debit account/UPI, suspect handle, UTR, and loss amount. | Transmits essential payment switch data required by 1930 / CFCFRMS nodal officers. |
+| **Expanded Suspect Screening** | Checks UPI IDs, URLs, phones, bank accounts (IFSC/Mule), and remote access apps (AnyDesk/TeamViewer). | Protects against remote control trojans and mule banking rings before money leaves the account. |
+| **7-Stage Restitution Timeline** | Full case tracking from FIR registration through Section 457 CrPC / 503 BNSS court order to account credit. | Eliminates opaque delays by guiding citizens through the statutory judicial refund process. |
+| **Downloadable PDF Acknowledgement** | One-click official PDF receipt (`jsPDF`) with SHA-256 evidence digests and banking freeze records. | Provides citizens with an archival physical document for their bank branch and local police station. |
 | **Assisted Mode (Guided MCQ)** | 5-step intuitive multiple-choice flow with dynamic sentence synthesis and voice narration. | Zero typing required; tailored for non-tech-savvy users and elderly citizens. |
-| **Natural Language Triage** | Rule-based classifier mapping symptoms to official NCRP taxonomy with loss amount detection. | Eliminates wrong category selection and accelerates police station routing. |
 | **Top Bar Accessibility Controls** | Instant language switching (6 languages), text scaling (`A-`, `A`, `A+`), and high-contrast assistance toggle. | Compliant with Government of India UX4G accessibility standards. |
-| **Data-Driven Case Tracking** | Direct database lookup by ACK number displaying case stage, assigned cyber unit, and remaining SLA days. | Replaces opaque complaint status with an accountable investigation timeline. |
-| **Suspect Intelligence Check** | Real-time heuristics identifying homograph phishing links, suspicious UPI patterns, and international prefixes. | Proactively prevents fraud before transactions occur. |
 
 ---
 
@@ -133,6 +136,8 @@
 | :--- | :--- | :--- | :--- |
 | **Framework** | Next.js (App Router) | `16.3.4` | SSR, Server Actions, Client Components, Turbopack |
 | **Library** | React | `19.2.8` | Component architecture and state hydration |
+| **AI / Vision** | OpenAI SDK | `^4.86.0` | `gpt-4o-mini` semantic triage & `gpt-4o` screenshot scam extraction |
+| **PDF Generation** | jsPDF | `^2.5.2` | Client-side official NCRP complaint confirmation PDF generation |
 | **Language** | TypeScript | `^5.0` | End-to-end static typing and schema verification |
 | **Styling** | Vanilla CSS + TailwindCSS | `^4.0` | UX4G government design tokens and responsive layouts |
 | **Database** | MongoDB Native Driver | `^7.6.0` | Document persistence and query execution |
@@ -151,16 +156,20 @@
 ├── src/
 │   ├── actions/                # Next.js Server Actions
 │   │   ├── auth.ts             # Sign-in & OTP verification
-│   │   ├── check.ts            # Suspect check & reporting
+│   │   ├── check.ts            # Suspect check & reporting (Bank, App, Phone, UPI, URL)
 │   │   ├── report.ts           # Complaint filing & banking freeze
 │   │   └── track.ts            # ACK tracking & user complaints
 │   ├── app/                    # App Router pages and layouts
-│   │   ├── check/              # Suspect lookup portal
-│   │   ├── report/             # Multi-step complaint journey
-│   │   ├── signin/             # Phone OTP sign-in
-│   │   ├── track/              # Live case tracking
-│   │   ├── layout.tsx          # Root layout with top bar & footer
-│   │   └── page.tsx            # Portal landing page
+│   │   ├── api/                # API Endpoints
+│   │   │   ├── check-image/    # GPT-4o screenshot threat extractor
+│   │   │   └── triage/         # GPT-4o-mini hybrid AI triage with rule-based fallback
+│   │   ├── check/              # Suspect lookup & threat upload portal
+│   │   ├── digital-arrest/     # Digital Arrest emergency circuit-breaker interrupt
+│   │   ├── report/             # Multi-step complaint journey with jsPDF download
+│   │   ├── signin/             # Phone OTP sign-in & citizen registration
+│   │   ├── track/              # 7-stage case tracking & BNSS restitution guide
+│   │   ├── layout.tsx          # Root layout with top bar, Google Fonts & footer
+│   │   └── page.tsx            # Portal landing page with Digital Arrest alerts
 │   ├── components/             # Reusable UI & Layout components
 │   │   ├── layout/             # Header, Top Bar, Footer
 │   │   ├── report/             # GuidedReport (5-step MCQ flow)
@@ -173,8 +182,8 @@
 │   └── lib/                    # Core business logic & database
 │       ├── i18n.ts             # Multilingual translations dictionary
 │       ├── mongodb.ts          # MongoDB client & resilient fallback
-│       ├── timeline.ts         # SLA & event gap duration formatters
-│       └── triage.ts           # Rule-based NCRP categorization engine
+│       ├── timeline.ts         # 7-stage SLA & event gap duration formatters
+│       └── triage.ts           # Hybrid NCRP categorization engine (30+ categories)
 ├── tests/
 │   └── suite.test.ts           # 10 automated end-to-end unit tests
 ├── scripts/
@@ -194,6 +203,7 @@
 - **Node.js**: v20.x or v22.x installed.
 - **Package Manager**: `npm` (v10+).
 - **MongoDB** (Optional for local): Either local MongoDB (`mongodb://127.0.0.1:27017`) or a free [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) cluster URI.
+- **OpenAI API Key** (Optional): Enables GPT-4o-mini semantic triage and GPT-4o screenshot analysis. If omitted, the system seamlessly falls back to the deterministic classifier.
 
 ### Installation
 ```bash
@@ -223,6 +233,9 @@ JWT_SECRET="surakhsa_super_secret_jwt_key_hackathon_2026"
 
 # Canonical App URL
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
+
+# Optional: OpenAI API Key for AI triage and screenshot threat scanning
+OPENAI_API_KEY="sk-proj-..."
 ```
 
 | Variable | Required | Description | Example |
@@ -231,6 +244,7 @@ NEXT_PUBLIC_APP_URL="http://localhost:3000"
 | `MONGODB_DB` | Optional | Database name (defaults to `surakhsa`) | `Saarthi` |
 | `JWT_SECRET` | Yes | Secret used for cookie signing | `your_random_secret_string` |
 | `NEXT_PUBLIC_APP_URL`| Optional | Deployment host URL | `https://casepath-two.vercel.app` |
+| `OPENAI_API_KEY` | Optional | OpenAI Key for GPT-4o-mini & GPT-4o screenshot triage | `sk-proj-...` |
 
 ---
 
@@ -284,7 +298,10 @@ Connects to your active MongoDB Atlas cluster and prints stored complaint record
 | Component / Functionality | Status | Details |
 | :--- | :---: | :--- |
 | **MongoDB Atlas Persistence** | **REAL** | Real database queries, insertions, and document lookups. |
-| **Natural Language Triage** | **REAL** | Algorithmic classification mapping input to 30+ official NCRP categories. |
+| **Hybrid AI & Heuristic Triage** | **REAL** | Semantic classification via OpenAI `gpt-4o-mini` with instant deterministic fallback. |
+| **Screenshot Threat Vision** | **REAL** | Multimodal scam extraction from uploaded images via OpenAI `gpt-4o`. |
+| **Digital Arrest Circuit Breaker** | **REAL** | Real-time pattern interception and emergency redirection (`/digital-arrest`). |
+| **PDF Acknowledgement Generation**| **REAL** | Client-side official NCRP receipt generation via `jsPDF`. |
 | **Client Evidence Hashing** | **REAL** | Cryptographic SHA-256 calculation in the browser via `window.crypto.subtle`. |
 | **Voice Narration (Read Aloud)** | **REAL** | Browser Web Speech API (`SpeechSynthesis`) with sentence chunking. |
 | **Accessibility & Localization** | **REAL** | Live switching across 6 Indian languages and dynamic text scaling (`A-`, `A`, `A+`). |
@@ -296,9 +313,9 @@ Connects to your active MongoDB Atlas cluster and prints stored complaint record
 ---
 
 ## 18. Limitations
-- Classification relies on refined keyword heuristics rather than a fine-tuned heavy transformer model (optimized for zero-latency execution in serverless runtimes).
-- Evidence files are verified via hash but binary files are not persisted to cloud object storage.
-- Regional language translations in the current build focus on core portal strings, forms, and alerts.
+- Evidence files are verified via cryptographic SHA-256 hash client-side, but raw multi-megabyte binary files are not persisted to cloud object storage.
+- Regional language translations in the current build focus on core portal navigation, emergency alerts, assisted MCQ reporting, and citizen action guides.
+- Direct banking switch intervention simulates official 1930 nodal officer dispatch protocols without calling live production core-banking switches.
 
 ---
 

@@ -18,11 +18,18 @@ export default function CheckPage() {
   const [reportingLoading, setReportingLoading] = useState(false);
   const [reportedRef, setReportedRef] = useState<string | null>(null);
 
+  // Screenshot / vision
+  const [visionLoading, setVisionLoading] = useState(false);
+  const [extractedText, setExtractedText] = useState<string | null>(null);
+  const [visionUnavailable, setVisionUnavailable] = useState(false);
+
   const examples = [
     { label: "Bank Spoof URL", value: "sbi.secure-verify.xyz/login" },
     { label: "Punycode Phish", value: "xn--pypal-4ve.com" },
     { label: "Scam UPI VPA", value: "electricity.refund.support@ybl" },
     { label: "Overseas Caller", value: "+92 300 1234567" },
+    { label: "Bank Account No.", value: "305601510040" },
+    { label: "AnyDesk (Remote App)", value: "AnyDesk" },
   ];
 
   const handleRunCheck = async (textToCheck = inputVal) => {
@@ -101,7 +108,11 @@ export default function CheckPage() {
           Check a suspect, then report it
         </h1>
         <p className="mt-3 text-lg leading-relaxed text-ink-600">
-          Paste a link, UPI ID, phone number, or email. You get an immediate structural safety analysis — and if it looks deceptive, you can submit it to the national suspect registry.
+          Paste a link, UPI ID, phone number, email, bank account number, or remote-access app name.
+          You get an immediate structural safety analysis — and if it looks deceptive, you can submit it to the national suspect registry.
+        </p>
+        <p className="mt-2 text-sm text-ink-500">
+          New: also accepts <strong>bank account numbers</strong> and <strong>remote-access app names</strong> (AnyDesk, TeamViewer, etc.) — not available on the official portal.
         </p>
       </div>
 
@@ -151,7 +162,59 @@ export default function CheckPage() {
         </form>
       </Card>
 
-      {/* VERDICT CARD */}
+      {/* Screenshot Upload (Vision API) */}
+      {!visionUnavailable && (
+        <Card className="p-5">
+          <p className="text-sm font-bold text-ink-900 mb-1">Got a screenshot?</p>
+          <p className="text-xs text-ink-600 mb-3">
+            Upload a screenshot of the suspicious message, website, or UPI screen. AI vision will extract the identifier and run the check automatically.
+          </p>
+          <label
+            htmlFor="screenshot-upload"
+            className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-ux border-2 border-dashed border-ink-200 bg-ink-50 p-5 text-center hover:border-brand-400 hover:bg-brand-50 transition"
+          >
+            <span className="text-3xl" aria-hidden="true">📷</span>
+            <span className="text-sm font-semibold text-ink-700">
+              {visionLoading ? "Analysing screenshot..." : "Click or drag a screenshot here"}
+            </span>
+            {extractedText && (
+              <span className="rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold text-brand-700">
+                Extracted: {extractedText}
+              </span>
+            )}
+            <input
+              id="screenshot-upload"
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              disabled={visionLoading}
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setVisionLoading(true);
+                setExtractedText(null);
+                const fd = new FormData();
+                fd.append("image", file);
+                try {
+                  const res = await fetch("/api/check-image", { method: "POST", body: fd });
+                  const data = await res.json();
+                  if (data.error === "vision_unavailable") {
+                    setVisionUnavailable(true);
+                    return;
+                  }
+                  if (data.extractedText) setExtractedText(data.extractedText);
+                  if (data.verdict) setVerdict(data as CheckVerdict);
+                } catch {
+                  // silently ignore
+                } finally {
+                  setVisionLoading(false);
+                }
+              }}
+            />
+          </label>
+        </Card>
+      )}
+
       {verdict && (
         <div className={`rounded-ux-xl border-2 p-6 transition shadow-sm ${verdictStyles[verdict.verdict].box}`}>
           <div className="flex items-start gap-4">

@@ -70,6 +70,28 @@ export default function Home() {
               </div>
             </div>
 
+            {/* Right column — stacked alert cards */}
+            <div className="flex flex-col gap-5">
+
+            {/* Digital Arrest Alert — most urgent, shown first */}
+            <div className="rounded-ux-xl border-2 border-danger-600 bg-danger-50 p-5 sm:p-6 ux-pulse-danger">
+              <p className="mb-1 text-xs font-bold uppercase tracking-wide text-danger-600">
+                Are you on a call right now?
+              </p>
+              <h2 className="text-xl font-bold text-ink-900">
+                Claiming to be police, CBI, or a government official?
+              </h2>
+              <p className="mt-2 text-sm leading-relaxed text-ink-700">
+                This is a scripted scam called a "Digital Arrest". No law in India permits arrest
+                over a call. You can hang up safely — no legal consequence.
+              </p>
+              <div className="mt-4">
+                <Button href="/digital-arrest" variant="danger" size="lg" className="w-full sm:w-auto">
+                  Get help now →
+                </Button>
+              </div>
+            </div>
+
             {/* Emergency Golden Hour Card */}
             <Card variant="danger">
               <p className="mb-1 text-xs font-bold uppercase tracking-wide text-danger-600">
@@ -140,6 +162,7 @@ export default function Home() {
                   "Illustrative figures based on the rationale behind India's 1930 golden-hour helpline. Not official statistics."}
               </p>
             </Card>
+            </div> {/* end right column */}
           </div>
         </div>
       </section>

@@ -7,6 +7,12 @@ export interface Category {
   description: string;
 }
 
+/**
+ * Subset of Category IDs that trigger special UX flows (e.g., interrupt screens).
+ */
+export const SPECIAL_ROUTE_CATEGORIES = ["digital_arrest"] as const;
+export type SpecialRouteCategory = (typeof SPECIAL_ROUTE_CATEGORIES)[number];
+
 export const CATEGORIES: Category[] = [
   {
     id: "upi_fraud",
@@ -128,6 +134,55 @@ export const CATEGORIES: Category[] = [
     defaultUrgency: "standard",
     description: "Any other digital offence not covered by specific categories above.",
   },
+  // ── New NCRP-aligned categories (April 2026) ──────────────────────────────
+  {
+    id: "digital_arrest",
+    label: "Digital Arrest Scam",
+    parent: "Other Cyber Crime",
+    isFinancial: false,
+    defaultUrgency: "urgent",
+    description: "Impersonation of police, CBI, ED, customs, or income-tax officers over video/audio call, threatening illegal arrest unless a payment is made. No such legal procedure exists.",
+  },
+  {
+    id: "romance_scam",
+    label: "Romance / Matrimonial Fraud",
+    parent: "Financial Fraud",
+    isFinancial: true,
+    defaultUrgency: "urgent",
+    description: "Fake relationships on dating, matrimonial, or social sites leading to money transfers, gift demands, or nude photo sharing.",
+  },
+  {
+    id: "fake_customer_care",
+    label: "Fake Helpline / Customer Care Fraud",
+    parent: "Financial Fraud",
+    isFinancial: true,
+    defaultUrgency: "golden-hour",
+    description: "Fraudster poses as bank, telecom, or e-commerce customer care to extract OTPs, card details, or remote access.",
+  },
+  {
+    id: "government_impersonation",
+    label: "Government Official Impersonation",
+    parent: "Other Cyber Crime",
+    isFinancial: false,
+    defaultUrgency: "urgent",
+    description: "Impersonation of a government officer, court official, or regulator (not in digital-arrest pattern) to extract money or personal data.",
+  },
+  {
+    id: "courier_parcel_scam",
+    label: "Courier / Parcel Scam",
+    parent: "Financial Fraud",
+    isFinancial: true,
+    defaultUrgency: "urgent",
+    description: "Fake notification of seized parcel, drugs or contraband found in courier, demanding customs duty or clearance payment.",
+  },
+  {
+    id: "task_scam",
+    label: "Task / Like-Subscribe Scam",
+    parent: "Financial Fraud",
+    isFinancial: true,
+    defaultUrgency: "urgent",
+    description: "Online task platform (YouTube like, Instagram follow, hotel reviews) requiring deposits to 'unlock' earnings; earnings are never paid out.",
+  },
 ];
 
 export interface TriageResult {
@@ -139,6 +194,10 @@ export interface TriageResult {
   detectedAmount?: number;
   moneyMoved: boolean;
   reasoning: string;
+  /** Set to true when categoryId is "digital_arrest" — triggers interrupt-screen redirect */
+  isDigitalArrest?: boolean;
+  /** Identifies whether the result came from AI or the deterministic rule engine */
+  source?: "ai" | "deterministic";
 }
 
 export function parseFinancialAmount(text?: string | null): number | undefined {
@@ -187,6 +246,38 @@ export function classifyNarrative(narrative?: string | null): TriageResult {
   const text = safeText.toLowerCase().trim();
   const detectedAmount = parseFinancialAmount(safeText);
 
+  // ── PRIORITY 0: Digital Arrest Scam ────────────────────────────────────────
+  // Must fire before every other branch — I4C advisory Jan 2024 / MHA Apr 2026.
+  const hasDigitalArrestSignal =
+    text.includes("digital arrest") ||
+    text.includes("cbi officer") ||
+    text.includes("enforcement directorate") ||
+    text.includes("income tax officer") ||
+    text.includes("income tax department") ||
+    text.includes("narcotics control") ||
+    text.includes("police custody") ||
+    text.includes("fake arrest") ||
+    text.includes("stay on the line") ||
+    text.includes("do not disconnect") ||
+    (text.includes("arrested") && (text.includes("parcel") || text.includes("courier") || text.includes("drugs"))) ||
+    (text.includes("video call") && (text.includes("police") || text.includes("officer") || text.includes("fir")));
+
+  if (hasDigitalArrestSignal) {
+    return {
+      categoryId: "digital_arrest",
+      categoryLabel: "Digital Arrest Scam",
+      parentCategory: "Other Cyber Crime",
+      isFinancialFraud: false,
+      urgency: "urgent",
+      detectedAmount,
+      moneyMoved: false,
+      reasoning:
+        "Digital arrest pattern detected. This is a known scam — no law in India permits 'digital arrest'. Routing to emergency interrupt screen.",
+      isDigitalArrest: true,
+      source: "deterministic",
+    };
+  }
+
   // 1. Filler and greeting detection
   const stripped = text.replace(/[^a-z0-9]/g, " ").trim();
   const fillerList = [
@@ -219,6 +310,7 @@ export function classifyNarrative(narrative?: string | null): TriageResult {
       detectedAmount: undefined,
       moneyMoved: false,
       reasoning: "No actionable cybercrime indicators detected in greeting or test input.",
+      source: "deterministic",
     };
   }
 
@@ -334,10 +426,28 @@ export function classifyNarrative(narrative?: string | null): TriageResult {
     text.includes("task") ||
     text.includes("part time job") ||
     text.includes("part-time job") ||
-    text.includes("telegram group") ||
     text.includes("youtube like") ||
-    text.includes("work from home") ||
+    text.includes("instagram follow") ||
     text.includes("prepaid task") ||
+    text.includes("task platform") ||
+    text.includes("task app")
+  ) {
+    return {
+      categoryId: "task_scam",
+      categoryLabel: "Task / Like-Subscribe Scam",
+      parentCategory: "Financial Fraud",
+      isFinancialFraud: true,
+      urgency: moneyMoved ? "golden-hour" : "urgent",
+      detectedAmount,
+      moneyMoved,
+      reasoning: "Categorized as task/like-subscribe employment scam involving fraudulent deposit requests.",
+      source: "deterministic",
+    };
+  }
+
+  if (
+    text.includes("work from home") ||
+    text.includes("telegram group") ||
     (text.includes("daily") && text.includes("promising"))
   ) {
     return {
@@ -348,7 +458,95 @@ export function classifyNarrative(narrative?: string | null): TriageResult {
       urgency: moneyMoved ? "golden-hour" : "urgent",
       detectedAmount,
       moneyMoved,
-      reasoning: "Categorized as part-time task employment scam involving fraudulent deposit requests.",
+      reasoning: "Categorized as work-from-home employment scam involving fraudulent deposit requests.",
+      source: "deterministic",
+    };
+  }
+
+  // Romance / matrimonial scam
+  if (
+    text.includes("dating") ||
+    text.includes("matrimonial") ||
+    text.includes("met online") ||
+    text.includes("online friend") ||
+    text.includes("chat app") ||
+    text.includes("shaadi") ||
+    text.includes("fell in love")
+  ) {
+    return {
+      categoryId: "romance_scam",
+      categoryLabel: "Romance / Matrimonial Fraud",
+      parentCategory: "Financial Fraud",
+      isFinancialFraud: true,
+      urgency: moneyMoved ? "golden-hour" : "urgent",
+      detectedAmount,
+      moneyMoved,
+      reasoning: "Romance or matrimonial fraud pattern detected — money transfer following online relationship.",
+      source: "deterministic",
+    };
+  }
+
+  // Fake customer care / helpline
+  if (
+    text.includes("customer care") ||
+    text.includes("helpline") ||
+    text.includes("support number") ||
+    text.includes("toll free") ||
+    text.includes("called bank")
+  ) {
+    return {
+      categoryId: "fake_customer_care",
+      categoryLabel: "Fake Helpline / Customer Care Fraud",
+      parentCategory: "Financial Fraud",
+      isFinancialFraud: true,
+      urgency: moneyMoved ? "golden-hour" : "urgent",
+      detectedAmount,
+      moneyMoved,
+      reasoning: "Fake customer care / helpline impersonation detected.",
+      source: "deterministic",
+    };
+  }
+
+  // Courier / parcel scam (without digital arrest angle)
+  if (
+    text.includes("parcel") ||
+    text.includes("courier") ||
+    text.includes("customs duty") ||
+    text.includes("clearance fee") ||
+    text.includes("package seized")
+  ) {
+    return {
+      categoryId: "courier_parcel_scam",
+      categoryLabel: "Courier / Parcel Scam",
+      parentCategory: "Financial Fraud",
+      isFinancialFraud: true,
+      urgency: moneyMoved ? "golden-hour" : "urgent",
+      detectedAmount,
+      moneyMoved,
+      reasoning: "Courier or parcel scam detected — fake customs duty or clearance payment demand.",
+      source: "deterministic",
+    };
+  }
+
+  // Government official impersonation (non-digital-arrest pattern)
+  if (
+    text.includes("government official") ||
+    text.includes("officer impersonation") ||
+    text.includes("court official") ||
+    text.includes("magistrate calling") ||
+    text.includes("impersonating a government") ||
+    text.includes("fake government")
+  ) {
+    return {
+      categoryId: "government_impersonation",
+      categoryLabel: "Government Official Impersonation",
+      parentCategory: "Other Cyber Crime",
+      isFinancialFraud: false,
+      urgency: "urgent",
+      detectedAmount: undefined,
+      moneyMoved: false,
+      reasoning: "Government official impersonation detected outside digital-arrest pattern.",
+      source: "deterministic",
     };
   }
 
@@ -507,5 +705,6 @@ export function classifyNarrative(narrative?: string | null): TriageResult {
     detectedAmount,
     moneyMoved,
     reasoning: "General digital offence report. You may adjust the category during final review.",
+    source: "deterministic",
   };
 }

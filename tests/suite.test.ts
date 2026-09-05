@@ -59,7 +59,7 @@ test("every category is reachable by its own most specific keyword", () => {
     net_banking: "Net banking phishing link compromised my credentials",
     card_fraud: "Unauthorized credit card ATM withdrawal and CVV skimmed",
     investment_scam: "Fake crypto trading app with high return promise",
-    job_scam: "Part-time job YouTube like task scam on Telegram group",
+    job_scam: "Work from home opportunity on Telegram group promising daily payments",
     loan_app_scam: "Illegal loan app recovery agent extortion",
     sim_swap: "Fraudulent SIM swap and telecom fraud deactivated my SIM",
     child_safety: "Online child safety violation and CSAM abuse material",
@@ -70,6 +70,13 @@ test("every category is reachable by its own most specific keyword", () => {
     account_takeover: "Instagram account takeover and email hacked",
     malware_ransomware: "Device locked with malware ransomware attack and files encrypted",
     other_cybercrime: "Suspicious unauthorized activity not listed above",
+    // New categories (April 2026)
+    digital_arrest: "A man claiming to be CBI officer told me I am under digital arrest and must stay on the line",
+    romance_scam: "I met someone on a dating app who asked me to transfer money after we fell in love",
+    fake_customer_care: "I called a helpline support number and they took my OTP",
+    government_impersonation: "Someone is impersonating a government official — using fake government credentials to threaten me",
+    courier_parcel_scam: "Got call about parcel seized at customs with drugs, demanded customs duty clearance fee",
+    task_scam: "Joined a task platform asking me to like YouTube videos and subscribe for prepaid tasks",
   };
 
   for (const cat of CATEGORIES) {

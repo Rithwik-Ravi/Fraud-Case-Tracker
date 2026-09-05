@@ -7,7 +7,7 @@ const SESSION_COOKIE = "surakhsa_session";
 
 export interface CheckVerdict {
   query: string;
-  kind: "url" | "upi" | "phone" | "email" | "telegram" | "unclear";
+  kind: "url" | "upi" | "phone" | "email" | "telegram" | "bank_account" | "remote_access_app" | "unclear";
   verdict: "danger" | "warning" | "unclear" | "ok";
   title: string;
   reasons: string[];
@@ -22,8 +22,18 @@ export async function checkSuspectAction(rawInput: string): Promise<CheckVerdict
   let title = "We could not tell what this is.";
   const reasons: string[] = [];
 
-  // UPI detection
-  if (lower.includes("@") && !lower.includes("http") && !lower.includes("www") && !lower.includes(".com")) {
+  // ── Remote access app (highest priority — very specific signal) ──────────
+  const remoteApps = ["anydesk", "teamviewer", "quicksupport", "anyviewer", "rustdesk", "airdroid", "remote utilities"];
+  if (remoteApps.some((app) => lower.includes(app))) {
+    kind = "remote_access_app";
+    verdict = "danger";
+    title = "Remote access software. Do not install this.";
+    reasons.push("No legitimate bank, government agency, or company will ever ask you to install remote-access software.");
+    reasons.push("If you install it, the caller gains full control of your device and can steal banking credentials and OTPs silently.");
+    reasons.push("Uninstall immediately if already installed and change all passwords from a different device.");
+  }
+  // ── UPI detection ─────────────────────────────────────────────────────────
+  else if (lower.includes("@") && !lower.includes("http") && !lower.includes("www") && !lower.includes(".com")) {
     kind = "upi";
     const bankHandles = ["@oksbi", "@okhdfcbank", "@okaxis", "@okicici", "@ybl", "@paytm", "@ibl", "@axl"];
     const hasKnownHandle = bankHandles.some((h) => lower.endsWith(h));
@@ -44,7 +54,7 @@ export async function checkSuspectAction(rawInput: string): Promise<CheckVerdict
       reasons.push("Standard VPA syntax. Always verify the recipient's registered beneficiary name in your UPI app before sending.");
     }
   }
-  // URL / Website detection
+  // ── URL / Website detection ───────────────────────────────────────────────
   else if (lower.startsWith("http") || lower.includes(".xyz") || lower.includes(".top") || lower.includes(".online") || lower.includes("xn--") || lower.includes(".com") || lower.includes(".in")) {
     kind = "url";
 
@@ -70,7 +80,7 @@ export async function checkSuspectAction(rawInput: string): Promise<CheckVerdict
       reasons.push("No automated deceptive indicators detected in the URL structure. Always verify HTTPS certificate validity.");
     }
   }
-  // Phone number detection
+  // ── Phone number detection ────────────────────────────────────────────────
   else if (/^\+?[\d\s-]{10,15}$/.test(lower.replace(/[\s-]/g, ""))) {
     kind = "phone";
     const cleanDigits = lower.replace(/\D/g, "");
@@ -89,7 +99,7 @@ export async function checkSuspectAction(rawInput: string): Promise<CheckVerdict
       reasons.push("Valid number format. Beware if this caller demands OTPs, APK downloads, or bank account details.");
     }
   }
-  // Email detection
+  // ── Email detection ───────────────────────────────────────────────────────
   else if (lower.includes("@") && lower.includes(".")) {
     kind = "email";
     if (lower.endsWith("@gmail.com") || lower.endsWith("@yahoo.com") || lower.endsWith("@hotmail.com")) {
@@ -101,6 +111,15 @@ export async function checkSuspectAction(rawInput: string): Promise<CheckVerdict
       title = "Domain mail format.";
       reasons.push("Standard email syntax. Verify the SPF/DKIM authentication header in your email client.");
     }
+  }
+  // ── Bank account number detection (≥ 9 digits, not phone) ─────────────────
+  else if (/^\d{9,18}$/.test(query.replace(/[\s-]/g, ""))) {
+    kind = "bank_account";
+    verdict = "warning";
+    title = "Bank account number accepted for tracking.";
+    reasons.push("This looks like a bank account number. We cannot verify it against live banking data, but it has been recorded for fraud pattern analysis.");
+    reasons.push("Never transfer money to an account given by an unknown caller, even if they claim it is a 'safe' or 'escrow' account.");
+    reasons.push("If you have already sent money to this account, call 1930 immediately to request a freeze.");
   }
 
   // Save to MongoDB suspect_checks for analytics and fraud pattern tracking

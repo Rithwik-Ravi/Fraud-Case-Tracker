@@ -1,5 +1,7 @@
 /**
  * Timeline and SLA helper utilities
+ * Stages reflect MHA / I4C official case progression, updated April 2026
+ * to include the Money Restoration Module (MRM).
  */
 
 export function getStageName(stage: number, freezeRequested = false): string {
@@ -7,13 +9,19 @@ export function getStageName(stage: number, freezeRequested = false): string {
     case 1:
       return "Complaint Formalized";
     case 2:
-      return freezeRequested ? "Banking Network Freeze Hold (1930 / CFCFRMS)" : "Preliminary Intake Review";
+      return freezeRequested
+        ? "Banking Network Freeze Hold (1930 / CFCFRMS)"
+        : "Preliminary Intake Review";
     case 3:
       return "Investigating Officer (IO) Allocated";
     case 4:
       return "Notice under Section 91 CrPC & Evidence Collection";
     case 5:
       return "Final Determination & Settlement";
+    case 6:
+      return "Money Restoration Module (MRM) Review";
+    case 7:
+      return "Funds Restored to Victim Account";
     default:
       return `Stage ${stage} Processing`;
   }
