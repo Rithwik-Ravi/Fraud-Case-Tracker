@@ -190,31 +190,17 @@ In your Vercel project dashboard:
 1. Navigate to **Settings** > **Environment Variables**.
 2. Add the following variables:
    - `MONGODB_URI`: Your MongoDB Atlas connection string from Step 1.
+   - `MONGODB_DB`: `Saarthi` (or your preferred database name).
    - `JWT_SECRET`: Any random secure secret key (e.g. `surakhsa_super_secret_jwt_key_2026`).
-   - `NEXT_PUBLIC_APP_URL`: Your Vercel deployment URL (e.g. `https://your-project.vercel.app`).
-3. Click **Save**.
+   - `NEXT_PUBLIC_APP_URL`: Your Vercel deployment URL (e.g. `https://casepath-two.vercel.app`).
+3. Click **Save** and trigger a **Redeploy** on your latest deployment.
 
-### Step 3: Push Only the Clean Source Code to Git / GitHub
-All scratch files, `.env` files, legacy HTML archives, and AI agent metadata are already excluded via `.gitignore`.
-
-Run the following commands in your terminal to stage and push the changes:
+### Step 3: Verify Stored Complaints in MongoDB Atlas
+To verify that complaints submitted from either local or Vercel are safely stored in your cloud MongoDB database, run:
 
 ```bash
-# 1. Check status (verify only clean src/ files are staged)
-git status
-
-# 2. Add all tracked and new important source files
-git add .
-
-# 3. Commit your changes
-git commit -m "feat: complete functional Surakhsa portal with MongoDB, Assisted Mode, and Vercel readiness"
-
-# 4. Push to your repository
-git push origin master
+npm run db:check
 ```
-*(or `git push origin main` depending on your default branch name)*.
-
-Once pushed, Vercel will automatically trigger a new deployment, run `next build`, and deploy your live site!
 
 ---
 
@@ -227,9 +213,8 @@ npm run dev
 ```
 Open [http://localhost:3000](http://localhost:3000).
 
-### 2. Run Automated E2E Test Suite
-With the app running, execute:
+### 2. Verify Database Connection
 ```bash
-node scripts/test_e2e.js
+npm run db:check
 ```
-This tests all routes, OTP authentication, MongoDB complaint insertion/retrieval, and suspect check reporting.
+This connects to your configured MongoDB database, validates schema collections, and displays the latest stored complaint records.
