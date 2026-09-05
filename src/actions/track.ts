@@ -1,6 +1,6 @@
 "use server";
 
-import { getCollections, ComplaintDoc } from "@/lib/mongodb";
+import { getCollections, getFallbackStore, ComplaintDoc } from "@/lib/mongodb";
 import { cookies } from "next/headers";
 
 const SESSION_COOKIE = "surakhsa_session";
@@ -33,14 +33,36 @@ export async function trackComplaint(ackNumber: string): Promise<{
     return { error: "Please enter an Acknowledgement Number." };
   }
 
-  try {
-    const cleanAck = ackNumber.trim().toUpperCase();
-    const { complaints } = await getCollections();
+  const cleanAck = ackNumber.trim().toUpperCase();
 
-    // Query MongoDB by ack
-    const doc = await complaints.findOne({
-      ack: { $regex: new RegExp(`^${cleanAck}$`, "i") },
-    });
+  try {
+    let doc: ComplaintDoc | null | undefined = null;
+
+    // 1. Try MongoDB first
+    try {
+      const collections = await getCollections();
+      if (collections) {
+        doc = await collections.complaints.findOne({
+          ack: { $regex: new RegExp(`^${cleanAck}$`, "i") },
+        });
+      }
+    } catch (mongoErr) {
+      console.warn("MongoDB track query failed, checking fallback:", (mongoErr as Error).message);
+    }
+
+    // 2. If not found in MongoDB, check fallback memory store
+    if (!doc) {
+      doc = getFallbackStore().complaints.get(cleanAck);
+      if (!doc) {
+        // Search case-insensitively in fallback
+        for (const [key, val] of getFallbackStore().complaints.entries()) {
+          if (key.toUpperCase() === cleanAck) {
+            doc = val;
+            break;
+          }
+        }
+      }
+    }
 
     if (!doc) {
       return { error: `No record found for Acknowledgement "${cleanAck}". Please verify the number and try again.` };
@@ -48,8 +70,7 @@ export async function trackComplaint(ackNumber: string): Promise<{
 
     const createdTime = new Date(doc.createdAt).getTime();
     const hoursElapsed = Math.floor((Date.now() - createdTime) / (1000 * 60 * 60));
-    
-    // Deterministic progression based on time elapsed
+
     let currentStage = doc.stage || 1;
     if (hoursElapsed > 48) {
       currentStage = Math.max(currentStage, 3);
@@ -96,16 +117,38 @@ export async function getUserComplaints(): Promise<{
       return { signedIn: false, complaints: [] };
     }
 
-    const { sessions, complaints } = await getCollections();
-    const sess = await sessions.findOne({ token, expiresAt: { $gt: new Date() } });
-    if (!sess) {
-      return { signedIn: false, complaints: [] };
+    let phone: string | undefined;
+    const list: ComplaintDoc[] = [];
+
+    // Try MongoDB
+    try {
+      const collections = await getCollections();
+      if (collections) {
+        const sess = await collections.sessions.findOne({ token, expiresAt: { $gt: new Date() } });
+        if (sess) {
+          phone = sess.phone;
+          const found = await collections.complaints
+            .find({ phone })
+            .sort({ createdAt: -1 })
+            .toArray();
+          list.push(...found);
+        }
+      }
+    } catch (mongoErr) {
+      console.warn("MongoDB user complaints query failed, checking fallback:", (mongoErr as Error).message);
     }
 
-    const list = await complaints
-      .find({ phone: sess.phone })
-      .sort({ createdAt: -1 })
-      .toArray();
+    // Check fallback
+    if (!phone) {
+      const fallbackSess = getFallbackStore().sessions.get(token);
+      if (fallbackSess) phone = fallbackSess.phone;
+    }
+
+    if (phone && list.length === 0) {
+      for (const comp of getFallbackStore().complaints.values()) {
+        if (comp.phone === phone) list.push(comp);
+      }
+    }
 
     const mapped: SerializedComplaint[] = list.map((doc) => ({
       ack: doc.ack,
@@ -126,7 +169,7 @@ export async function getUserComplaints(): Promise<{
       policeUnitAssigned: "State Cyber Crime Police Station",
     }));
 
-    return { signedIn: true, phone: sess.phone, complaints: mapped };
+    return { signedIn: !!phone, phone, complaints: mapped };
   } catch (err) {
     console.error("Get user complaints error:", err);
     return { signedIn: false, complaints: [] };

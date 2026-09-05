@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { getCollections, UserDoc, SessionDoc } from "@/lib/mongodb";
+import { getCollections, getFallbackStore, UserDoc, SessionDoc } from "@/lib/mongodb";
 import crypto from "crypto";
 
 const SESSION_COOKIE = "surakhsa_session";
@@ -8,20 +8,33 @@ export async function createSession(phone: string) {
   const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
   const sessionToken = crypto.randomBytes(32).toString("hex");
 
-  const { sessions, users } = await getCollections();
+  try {
+    const collections = await getCollections();
+    if (collections) {
+      // Ensure user exists
+      await collections.users.updateOne(
+        { phone },
+        {
+          $set: { lastLoginAt: new Date() },
+          $setOnInsert: { phone, createdAt: new Date() },
+        },
+        { upsert: true }
+      );
 
-  // Ensure user exists
-  await users.updateOne(
-    { phone },
-    {
-      $set: { lastLoginAt: new Date() },
-      $setOnInsert: { phone, createdAt: new Date() },
-    },
-    { upsert: true }
-  );
+      // Store session in MongoDB
+      await collections.sessions.insertOne({
+        token: sessionToken,
+        phone,
+        createdAt: new Date(),
+        expiresAt,
+      });
+    }
+  } catch (err) {
+    console.warn("MongoDB createSession warning:", (err as Error).message);
+  }
 
-  // Store session in MongoDB
-  await sessions.insertOne({
+  // Also save to fallback store
+  getFallbackStore().sessions.set(sessionToken, {
     token: sessionToken,
     phone,
     createdAt: new Date(),
@@ -44,22 +57,36 @@ export async function getSession(): Promise<{ session: SessionDoc; user: UserDoc
   if (!token) return null;
 
   try {
-    const { sessions, users } = await getCollections();
-    const session = await sessions.findOne({
-      token,
-      expiresAt: { $gt: new Date() },
-    });
+    const collections = await getCollections();
+    if (collections) {
+      const session = await collections.sessions.findOne({
+        token,
+        expiresAt: { $gt: new Date() },
+      });
 
-    if (!session) return null;
-
-    const user = await users.findOne({ phone: session.phone });
-    if (!user) return null;
-
-    return { session, user };
+      if (session) {
+        const user = await collections.users.findOne({ phone: session.phone });
+        if (user) return { session, user };
+      }
+    }
   } catch (error) {
-    console.error("getSession error:", error);
-    return null;
+    console.warn("getSession error:", (error as Error).message);
   }
+
+  // Fallback
+  const fallbackSess = getFallbackStore().sessions.get(token);
+  if (fallbackSess && fallbackSess.expiresAt > new Date()) {
+    return {
+      session: fallbackSess,
+      user: {
+        phone: fallbackSess.phone,
+        createdAt: fallbackSess.createdAt,
+        lastLoginAt: new Date(),
+      },
+    };
+  }
+
+  return null;
 }
 
 export async function destroySession() {
@@ -68,11 +95,14 @@ export async function destroySession() {
 
   if (token) {
     try {
-      const { sessions } = await getCollections();
-      await sessions.deleteOne({ token });
+      const collections = await getCollections();
+      if (collections) {
+        await collections.sessions.deleteOne({ token });
+      }
     } catch (e) {
-      console.error("destroySession error:", e);
+      console.warn("destroySession error:", (e as Error).message);
     }
+    getFallbackStore().sessions.delete(token);
   }
 
   cookieStore.delete(SESSION_COOKIE);

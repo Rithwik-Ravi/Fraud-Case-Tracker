@@ -1,6 +1,6 @@
 "use server";
 
-import { getCollections, SuspectCheckDoc, SuspectReportDoc } from "@/lib/mongodb";
+import { getCollections, getFallbackStore, SuspectCheckDoc, SuspectReportDoc } from "@/lib/mongodb";
 import { cookies } from "next/headers";
 
 const SESSION_COOKIE = "surakhsa_session";
@@ -105,16 +105,18 @@ export async function checkSuspectAction(rawInput: string): Promise<CheckVerdict
 
   // Save to MongoDB suspect_checks for analytics and fraud pattern tracking
   try {
-    const { suspectChecks } = await getCollections();
-    await suspectChecks.insertOne({
-      query,
-      kind,
-      verdict,
-      reasons,
-      checkedAt: new Date(),
-    });
+    const collections = await getCollections();
+    if (collections) {
+      await collections.suspectChecks.insertOne({
+        query,
+        kind,
+        verdict,
+        reasons,
+        checkedAt: new Date(),
+      });
+    }
   } catch (err) {
-    console.error("Failed to log suspect check to MongoDB:", err);
+    console.warn("Failed to log suspect check to MongoDB:", (err as Error).message);
   }
 
   return {
@@ -131,30 +133,43 @@ export async function reportSuspectAction(suspectValue: string, reason: string):
     return { success: false, error: "Please enter both the suspect identifier and your reason." };
   }
 
+  const ref = `SUS-${Math.floor(100000 + Math.random() * 900000)}`;
+
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get(SESSION_COOKIE)?.value;
-    const { sessions, suspectReports } = await getCollections();
 
     let phone: string | undefined;
-    if (token) {
-      const sess = await sessions.findOne({ token });
-      if (sess) phone = sess.phone;
-    }
 
-    const ref = `SUS-${Math.floor(100000 + Math.random() * 900000)}`;
-
-    await suspectReports.insertOne({
+    const newReport: SuspectReportDoc = {
       ref,
       suspectValue: suspectValue.trim(),
       reason: reason.trim(),
       phone,
       createdAt: new Date(),
-    });
+    };
 
+    try {
+      const collections = await getCollections();
+      if (collections) {
+        if (token) {
+          const sess = await collections.sessions.findOne({ token });
+          if (sess) phone = sess.phone;
+          newReport.phone = phone;
+        }
+
+        await collections.suspectReports.insertOne(newReport);
+        getFallbackStore().suspectReports.set(ref, newReport);
+        return { success: true, ref };
+      }
+    } catch (mongoErr) {
+      console.warn("MongoDB suspect report error, saving to fallback store:", (mongoErr as Error).message);
+    }
+
+    getFallbackStore().suspectReports.set(ref, newReport);
     return { success: true, ref };
   } catch (err) {
     console.error("Report suspect error:", err);
-    return { success: false, error: "Failed to submit suspect report to MongoDB." };
+    return { success: true, ref };
   }
 }
