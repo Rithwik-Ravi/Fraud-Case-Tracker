@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" fill="none">
+  <!-- CasePilot Geometric Path Mark: Angular routed path leading to an alert/destination beacon -->
+  <rect width="32" height="32" rx="6" fill="#0B0C0C" />
+  <path d="M7 24 L14 16 L19 20 L25 9" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+  <circle cx="25" cy="9" r="3.5" fill="#D4351C" />
+</svg>

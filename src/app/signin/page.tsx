@@ -253,7 +253,7 @@ function SignInForm() {
               </span>
             </div>
             <p className="text-xs leading-relaxed text-brand-800">
-              Signs in immediately with a pre-filled, verified citizen profile (<strong>Rajesh Kumar Sharma • +91 9600000598</strong>), linked DigiLocker Aadhaar verification, and pre-seeded complaint (<strong>ACK-2026-314982 for ₹98,765</strong>).
+              Signs in immediately with a pre-filled, verified citizen profile (<strong>Rajesh Kumar Sharma, +91 9600000598</strong>), linked DigiLocker Aadhaar verification, and pre-seeded complaint (<strong>ACK-2026-314982 for ₹98,765</strong>).
             </p>
             <Button
               type="button"
@@ -263,7 +263,7 @@ function SignInForm() {
               className="w-full justify-center text-sm py-2.5 shadow-sm"
             >
               <UserCheck className="h-4 w-4 mr-1.5" />
-              {loading ? "Authenticating Demo Profile..." : "Sign in as Verified Demo Complainant →"}
+              {loading ? "Authenticating Demo Profile..." : "Sign in as Verified Demo Complainant"}
             </Button>
           </div>
 
@@ -461,7 +461,7 @@ function SignInForm() {
                     className="w-full justify-center text-sm py-2.5 mt-2 shadow-sm"
                     disabled={loading || !regName.trim() || !regEmail.trim()}
                   >
-                    {loading ? "Registering Profile..." : "Complete Registration & Enter Portal →"}
+                    {loading ? "Registering Profile..." : "Complete Registration & Enter Portal"}
                   </Button>
                 </form>
               </div>
@@ -522,7 +522,7 @@ function SignInForm() {
                       className="w-full justify-center text-sm py-2.5"
                       disabled={loading || phone.length < 10}
                     >
-                      {loading ? "Generating Code..." : "Send OTP Code →"}
+                      {loading ? "Generating Code..." : "Send OTP Code"}
                     </Button>
                   </form>
                 ) : (
@@ -591,7 +591,7 @@ function SignInForm() {
                       className="w-full justify-center text-sm py-2.5"
                       disabled={loading || otp.length !== 6}
                     >
-                      {loading ? "Verifying..." : "Verify & Sign In →"}
+                      {loading ? "Verifying..." : "Verify & Sign In"}
                     </Button>
                   </form>
                 )}

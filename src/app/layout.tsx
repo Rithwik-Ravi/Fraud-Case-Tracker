@@ -5,11 +5,12 @@ import Footer from "@/components/layout/Footer";
 import AppProviders from "@/components/providers/AppProviders";
 
 export const metadata: Metadata = {
-  title: "Surakhsa — Report a cyber crime",
+  title: "CasePilot — Citizen Cyber Triage & Incident Routing",
   description:
-    "An independent hackathon prototype reimagining India's National Cyber Crime Reporting Portal, built on the UX4G design system.",
+    "CasePilot is an independent civic cyber incident triage and statutory routing service. Immediate situational triage, emergency Golden-Hour banking freeze capture, and statutory case tracking under Indian cyber law.",
   icons: {
-    icon: "/favicon.ico",
+    icon: "/icon.svg",
+    shortcut: "/icon.svg",
   },
 };
 

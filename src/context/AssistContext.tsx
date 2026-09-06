@@ -2,7 +2,8 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 
-const STORAGE_KEY = "surakhsa.assist.v1";
+const STORAGE_KEY = "casepilot.assist.v1";
+const LEGACY_STORAGE_KEY = "surakhsa.assist.v1";
 
 interface AssistContextType {
   assist: boolean;
@@ -49,7 +50,7 @@ export function AssistProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     try {
-      const stored = window.localStorage.getItem(STORAGE_KEY);
+      const stored = window.localStorage.getItem(STORAGE_KEY) || window.localStorage.getItem(LEGACY_STORAGE_KEY);
       setAssistState(stored === "on");
     } catch {}
     setCanSpeak(typeof window !== "undefined" && "speechSynthesis" in window);

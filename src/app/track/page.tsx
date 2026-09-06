@@ -74,7 +74,11 @@ function TrackContent() {
       try {
         let localAcks: string[] = [];
         try {
-          localAcks = JSON.parse(localStorage.getItem("surakhsa.recentAcks.v1") || "[]");
+          localAcks = JSON.parse(
+            localStorage.getItem("casepilot.recentAcks.v1") ||
+            localStorage.getItem("surakhsa.recentAcks.v1") ||
+            "[]"
+          );
         } catch {}
 
         const res = await getUserComplaints(localAcks);
@@ -283,8 +287,8 @@ function TrackContent() {
                     </h3>
                     <p className="text-xs text-ink-600 mt-0.5">
                       Case escalated to MRM for fund recovery assessment.{" "}
-                      <span className="rounded bg-brand-50 px-1 py-0.5 font-semibold text-brand-700">
-                        New · MHA policy April 2026
+                      <span className="rounded bg-brand-50 px-1.5 py-0.5 font-semibold text-brand-700">
+                        Statutory BNSS policy April 2026
                       </span>
                     </p>
                   </div>
@@ -371,9 +375,13 @@ function TrackContent() {
                       ✓ {userProfile?.verifiedStatus || "DigiLocker Verified"}
                     </span>
                   </div>
-                  <p className="text-xs text-ink-600 mt-0.5">
-                    Mobile: +91 {phone} • National ID: {userProfile?.idNumber || "XXXX-XXXX-4819"} • {userProfile?.state || "Delhi"}
-                  </p>
+                  <div className="text-xs text-ink-600 mt-0.5 flex flex-wrap items-center gap-x-2">
+                    <span>Mobile: +91 {phone}</span>
+                    <span aria-hidden="true" className="text-ink-300">/</span>
+                    <span>National ID: {userProfile?.idNumber || "XXXX-XXXX-4819"}</span>
+                    <span aria-hidden="true" className="text-ink-300">/</span>
+                    <span>{userProfile?.state || "Delhi"}</span>
+                  </div>
                 </div>
               </div>
               <button
@@ -467,7 +475,7 @@ function TrackContent() {
                   href="/report"
                   className="inline-block mt-3 rounded-ux bg-brand-600 px-4 py-2 text-xs font-semibold text-white hover:bg-brand-700 transition"
                 >
-                  File a New Complaint →
+                  File a New Complaint
                 </Link>
               </div>
             ) : (
@@ -525,7 +533,7 @@ function TrackContent() {
               href="/signin?next=/track"
               className="whitespace-nowrap rounded-ux bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-600 transition shrink-0 inline-block text-center"
             >
-              Citizen Sign In →
+              Citizen Sign In
             </Link>
           </div>
         )}

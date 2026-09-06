@@ -1,59 +1,64 @@
 @import "tailwindcss";
 
 /* =========================================================
-   UX4G v3.0 design tokens
-   Primary blue: #1F5B98 | Neutral: #1A2332 | Typescale: Noto Sans
+   CasePilot Civic Triage Design System
+   Calibrated for high-stakes civic triage & emergency dispatch
+   Primary ink: #0B0C0C | Canvas: #FFFFFF | Emergency red: #D4351C
+   Golden Hour amber: #D47700 | Civic blue: #1D70B8 | Green: #00703C
    ========================================================= */
 
 @theme {
-  /* Brand / Government blue */
-  --color-brand-50:  #EEF4FB;
-  --color-brand-100: #CCDDF2;
-  --color-brand-200: #99BBE5;
-  --color-brand-300: #6699D8;
-  --color-brand-400: #3377CB;
-  --color-brand-500: #1F5B98;
-  --color-brand-600: #1A4E85;
-  --color-brand-700: #153F6C;
+  /* Civic Action Blue — Calibrated to GOV.UK link & functional standard */
+  --color-brand-50:  #EEF5FA;
+  --color-brand-100: #D6E6F3;
+  --color-brand-200: #ADCBE7;
+  --color-brand-300: #7DAFDB;
+  --color-brand-400: #4B91CF;
+  --color-brand-500: #1D70B8;
+  --color-brand-600: #145996;
+  --color-brand-700: #0C4375;
 
-  /* Ink / neutral */
-  --color-ink-50:  #F5F7FA;
-  --color-ink-100: #E8ECF2;
-  --color-ink-200: #CDD4DF;
-  --color-ink-300: #A8B4C4;
-  --color-ink-400: #7E90A5;
-  --color-ink-500: #5A6E84;
-  --color-ink-600: #3F5268;
-  --color-ink-700: #2D3D52;
-  --color-ink-800: #1F2D3D;
-  --color-ink-900: #1A2332;
+  /* Triage Ink / stark neutral */
+  --color-ink-50:  #F8F9FA;
+  --color-ink-100: #F1F2F3;
+  --color-ink-200: #D8DADC;
+  --color-ink-300: #B1B4B6;
+  --color-ink-400: #868A8D;
+  --color-ink-500: #505A5F;
+  --color-ink-600: #383F43;
+  --color-ink-700: #232729;
+  --color-ink-800: #141718;
+  --color-ink-900: #0B0C0C;
 
-  /* Danger / error — UX4G error red */
+  /* Emergency Crimson — Active threat / Digital Arrest / 1930 */
   --color-danger-50:  #FEF2F2;
+  --color-danger-100: #FEE2E2;
   --color-danger-200: #FECACA;
-  --color-danger-500: #DC2626;
-  --color-danger-600: #B91C1C;
-  --color-danger-700: #991B1B;
+  --color-danger-500: #D4351C;
+  --color-danger-600: #B12814;
+  --color-danger-700: #8F1F0E;
 
-  /* Warning — UX4G amber */
+  /* Golden Hour Amber — Financial freeze / rapid urgency */
   --color-warning-50:  #FFFBEB;
-  --color-warning-500: #D97706;
-  --color-warning-600: #B45309;
-  --color-warning-700: #92400E;
+  --color-warning-100: #FEF3C7;
+  --color-warning-200: #FDE68A;
+  --color-warning-500: #D47700;
+  --color-warning-600: #A85D00;
+  --color-warning-700: #7E4500;
 
-  /* Success — UX4G green */
+  /* Compliance Green — Verified records / successful freeze */
   --color-success-50:  #F0FDF4;
   --color-success-100: #DCFCE7;
   --color-success-200: #BBF7D0;
-  --color-success-500: #22C55E;
-  --color-success-600: #16A34A;
-  --color-success-700: #15803D;
+  --color-success-500: #00703C;
+  --color-success-600: #005A30;
+  --color-success-700: #004424;
 
-  /* Radii */
-  --radius-ux-sm: 0.25rem;
-  --radius-ux:    0.375rem;
-  --radius-ux-lg: 0.5rem;
-  --radius-ux-xl: 0.75rem;
+  /* Structural Radii — Crisp, stark, no bubbly curves */
+  --radius-ux-sm: 0.125rem;
+  --radius-ux:    0.25rem;
+  --radius-ux-lg: 0.375rem;
+  --radius-ux-xl: 0.5rem;
 
   /* Typography */
   --font-sans: "Noto Sans", ui-sans-serif, system-ui, sans-serif;
@@ -61,8 +66,8 @@
 
 body {
   font-family: var(--font-sans);
-  background-color: var(--color-white);
-  color: var(--color-ink-900);
+  background-color: #FFFFFF;
+  color: #0B0C0C;
   -webkit-font-smoothing: antialiased;
 }
 
@@ -91,33 +96,33 @@ html[data-assist="on"] nav[aria-label="Main"] a {
 
 html[data-assist="on"] :focus-visible {
   outline-offset: 3px;
-  outline: 4px solid var(--color-brand-600);
+  outline: 4px solid var(--color-ink-900);
 }
 
 html[data-assist="on"] p,
 html[data-assist="on"] li {
-  max-width: 62ch;
+  max-width: 65ch;
 }
 
 /* ─── Digital-arrest interrupt override ─────────────────── */
 .interrupt-screen {
-  background: #FFF1F1;
-  border-top: 4px solid var(--color-danger-600);
+  background: #FFF5F5;
+  border-top: 6px solid var(--color-danger-500);
 }
 
 /* ─── Micro-animations ──────────────────────────────────── */
 @keyframes ux-arrive {
-  0%   { opacity: 0; transform: translateY(-8px); }
+  0%   { opacity: 0; transform: translateY(-4px); }
   100% { opacity: 1; transform: translateY(0); }
 }
 
 .ux-arrive {
-  animation: 0.35s ease-out both ux-arrive;
+  animation: 0.25s ease-out both ux-arrive;
 }
 
 @keyframes ux-pulse-ring {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
-  50%       { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(212, 53, 28, 0.4); }
+  50%       { box-shadow: 0 0 0 6px rgba(212, 53, 28, 0); }
 }
 
 .ux-pulse-danger {

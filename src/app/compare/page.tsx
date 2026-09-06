@@ -21,7 +21,7 @@ export default function Compare() {
           </Card>
         </div>
         <div>
-          <h2 className="mb-4 text-xl font-bold text-ink-900">Surakhsa Redesign</h2>
+          <h2 className="mb-4 text-xl font-bold text-ink-900">CasePilot Civic Redesign</h2>
           <Card className="h-full border-brand-200">
             <p className="text-sm text-ink-600">
               The redesign focuses on plain language, automatic triage, and prioritizing the "golden hour" for financial fraud. It asks one question at a time and provides accessible, readable interfaces.
@@ -32,7 +32,7 @@ export default function Compare() {
       
       <div className="mt-8">
         <Link className="font-semibold text-brand-600 underline underline-offset-2 hover:text-brand-700" href="/">
-          ← Back to Home
+          Return to Emergency Triage
         </Link>
       </div>
     </div>

@@ -88,7 +88,7 @@ export default function GuidedReport({ onConfirm }: GuidedReportProps) {
     extra.trim(),
   ]
     .filter(Boolean)
-    .join(" · ");
+    .join(". ") + ".";
 
   const handleConfirm = () => {
     const numAmount = amount ? parseFloat(amount) : undefined;

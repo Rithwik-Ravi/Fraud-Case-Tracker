@@ -1,14 +1,14 @@
-# Surakhsa — Cyber Crime Reporting Portal
+# CasePilot — Cyber Crime Reporting Portal
 
 > **Tell us what happened. We will handle the paperwork.**  
 > Next-Generation Citizen-Centric Cyber Crime Reporting & Rapid Triage Portal.
 
-![Surakhsa Portal Preview](./public/images/surakhsa_preview.png)
+![CasePilot Portal Preview](./public/images/surakhsa_preview.png)
 
 ---
 
 ## 1. Project Title
-**Surakhsa (सुरक्षा)** — An accessible, rapid-action citizen portal redesign for reporting cyber crimes in India.
+**CasePilot** — An accessible, rapid-action citizen portal redesign for reporting cyber crimes in India.
 
 ---
 
@@ -18,7 +18,7 @@
 ---
 
 ## 3. Short Project Overview
-**Surakhsa** is a modern reimagining of India's National Cyber Crime Reporting Portal (NCRP / 1930), designed using the **UX4G Design System** and built on **Next.js App Router** with a **MongoDB** persistence layer. It eliminates bureaucratic intimidation by translating plain citizen narratives into official NCRP categories, instantly prioritizing banking freeze interventions, and providing accessible step-by-step reporting for all citizens regardless of language, literacy, or digital experience.
+**CasePilot** is a modern reimagining of India's National Cyber Crime Reporting Portal (NCRP / 1930), designed using the **UX4G Design System** and built on **Next.js App Router** with a **MongoDB** persistence layer. It eliminates bureaucratic intimidation by translating plain citizen narratives into official NCRP categories, instantly prioritizing banking freeze interventions, and providing accessible step-by-step reporting for all citizens regardless of language, literacy, or digital experience.
 
 ---
 
@@ -109,16 +109,16 @@
 ```text
 ┌─────────────────────────────────────────────────────────────┐
 │                      Client Layer                           │
-│  Next.js 16 (Turbopack) • React 19 • TailwindCSS v4 • UX4G  │
+│  Next.js 16 (Turbopack) | React 19 | TailwindCSS v4 | UX4G  │
 │  Context Providers (AssistMode, Language, TextSize, Auth)   │
-│  Web Crypto API (SHA-256) • Web Speech API (TTS & Voice)    │
+│  Web Crypto API (SHA-256) | Web Speech API (TTS & Voice)    │
 └──────────────────────────────┬──────────────────────────────┘
                                │ Server Actions & API Routes
 ┌──────────────────────────────▼──────────────────────────────┐
 │                      Application Server                     │
-│  • Triage & Classification Engine (src/lib/triage.ts)       │
-│  • SLA & Timeline Engine (src/lib/timeline.ts)              │
-│  • Resilient Multi-tier Store with 4s Connection Timeout    │
+│  - Triage & Classification Engine (src/lib/triage.ts)       │
+│  - SLA & Timeline Engine (src/lib/timeline.ts)              │
+│  - Resilient Multi-tier Store with 4s Connection Timeout    │
 └──────────────────────────────┬──────────────────────────────┘
                                │ MongoDB Driver v7.6
 ┌──────────────────────────────▼──────────────────────────────┐
@@ -223,13 +223,13 @@ Create a `.env.local` file in the root directory (based on `.env.example`):
 
 ```env
 # MongoDB Atlas or local MongoDB URI
-MONGODB_URI="mongodb+srv://<username>:<password>@cluster0.mongodb.net/surakhsa?retryWrites=true&w=majority"
+MONGODB_URI="mongodb+srv://<username>:<password>@cluster0.mongodb.net/casepilot?retryWrites=true&w=majority"
 
-# Database Name
+# Database Name (Preserved for MongoDB Atlas cluster compatibility, or 'casepilot')
 MONGODB_DB="Saarthi"
 
 # Secret Key for secure session cookies
-JWT_SECRET="surakhsa_super_secret_jwt_key_hackathon_2026"
+JWT_SECRET="casepilot_super_secret_jwt_key_hackathon_2026"
 
 # Canonical App URL
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
@@ -241,7 +241,7 @@ OPENAI_API_KEY="sk-proj-..."
 | Variable | Required | Description | Example |
 | :--- | :---: | :--- | :--- |
 | `MONGODB_URI` | Yes | MongoDB Atlas connection string | `mongodb+srv://user:pass@cluster.mongodb.net/...` |
-| `MONGODB_DB` | Optional | Database name (defaults to `surakhsa`) | `Saarthi` |
+| `MONGODB_DB` | Optional | Database name (defaults to `casepilot` or legacy cluster `Saarthi`) | `Saarthi` |
 | `JWT_SECRET` | Yes | Secret used for cookie signing | `your_random_secret_string` |
 | `NEXT_PUBLIC_APP_URL`| Optional | Deployment host URL | `https://casepath-two.vercel.app` |
 | `OPENAI_API_KEY` | Optional | OpenAI Key for GPT-4o-mini & GPT-4o screenshot triage | `sk-proj-...` |

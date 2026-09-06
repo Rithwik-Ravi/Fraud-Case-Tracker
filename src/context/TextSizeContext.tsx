@@ -4,7 +4,8 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 
 export type TextSize = "sm" | "base" | "lg";
 
-const STORAGE_KEY = "surakhsa.textsize.v1";
+const STORAGE_KEY = "casepilot.textsize.v1";
+const LEGACY_STORAGE_KEY = "surakhsa.textsize.v1";
 
 interface TextSizeContextType {
   textSize: TextSize;
@@ -18,7 +19,7 @@ export function TextSizeProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     try {
-      const stored = window.localStorage.getItem(STORAGE_KEY) as TextSize;
+      const stored = (window.localStorage.getItem(STORAGE_KEY) || window.localStorage.getItem(LEGACY_STORAGE_KEY)) as TextSize;
       if (stored && ["sm", "base", "lg"].includes(stored)) {
         setTextSizeState(stored);
       }

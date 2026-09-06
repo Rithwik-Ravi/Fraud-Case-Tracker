@@ -1,8 +1,10 @@
 import { MongoClient, Db, ObjectId } from "mongodb";
 
+// Preserved internal MongoDB Atlas URI identifier for active cluster connectivity compatibility
 const DEFAULT_ATLAS_URI = "mongodb+srv://mailrittyplay_db_user:lDXkilgcqfmJhzvy@saarthi.u7yodo1.mongodb.net/?appName=Saarthi";
 
 export const getMongoUri = () => process.env.MONGODB_URI || DEFAULT_ATLAS_URI;
+// Preserved fallback database name "Saarthi" for existing MongoDB Atlas cluster compatibility
 export const getMongoDbName = () => process.env.MONGODB_DB || "Saarthi";
 
 let activeClient: MongoClient | null = null;

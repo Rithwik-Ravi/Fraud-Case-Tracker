@@ -67,7 +67,7 @@ export const useReportStore = create<ReportState>()(
       }),
     }),
     {
-      name: 'surakhsa-report-storage',
+      name: 'casepilot-report-storage',
     }
   )
 );

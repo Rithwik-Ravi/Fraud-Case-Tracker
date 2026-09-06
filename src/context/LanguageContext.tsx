@@ -3,7 +3,8 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
 import { DEFAULT_LANG, LANGUAGES, SPEECH_LOCALE, isLangCode, translate, Language } from "@/lib/i18n";
 
-const STORAGE_KEY = "surakhsa.lang.v1";
+const STORAGE_KEY = "casepilot.lang.v1";
+const LEGACY_STORAGE_KEY = "surakhsa.lang.v1";
 
 interface LanguageContextType {
   lang: string;
@@ -21,7 +22,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     try {
-      const stored = window.localStorage.getItem(STORAGE_KEY);
+      const stored = window.localStorage.getItem(STORAGE_KEY) || window.localStorage.getItem(LEGACY_STORAGE_KEY);
       if (stored && isLangCode(stored)) {
         setLangState(stored);
         return;

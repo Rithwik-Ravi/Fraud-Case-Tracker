@@ -16,7 +16,7 @@ export default function About() {
         <Card variant="danger">
           <p className="mb-1 text-sm font-bold text-danger-700">This is not a government service</p>
           <div className="text-sm leading-relaxed text-ink-700">
-            Surakhsa is an independent prototype built for the “Build What Moves India” hackathon. It is not affiliated with, endorsed by, or connected to the Ministry of Home Affairs, I4C, or any government body. It uses no government logo or emblem. If you need to report a real cyber crime, call 1930 or use cybercrime.gov.in.
+            CasePilot is an independent civic prototype built for the “Build What Moves India” hackathon. It is not affiliated with, endorsed by, or connected to the Ministry of Home Affairs, I4C, or any government body. It uses no government logo or emblem. If you need to report a real cyber crime, call 1930 or use cybercrime.gov.in.
           </div>
         </Card>
       </div>
@@ -28,7 +28,7 @@ export default function About() {
         <ul className="space-y-2">
           <li className="flex gap-2 text-sm leading-relaxed text-ink-700">
             <span aria-hidden="true" className="mt-0.5 text-success-500">✓</span>
-            The whole citizen journey: describe → classify → freeze request → details → review → file → track.
+            The complete citizen journey: plain-language narrative input, automatic statutory triage, Golden-Hour bank freeze request, evidence SHA-256 hashing, review, and live case tracking.
           </li>
           <li className="flex gap-2 text-sm leading-relaxed text-ink-700">
             <span aria-hidden="true" className="mt-0.5 text-success-500">✓</span>

@@ -2,7 +2,8 @@ import { cookies } from "next/headers";
 import { getCollections, getFallbackStore, UserDoc, SessionDoc, UserProfile, DEFAULT_MOCK_PROFILE, ComplaintDoc } from "@/lib/mongodb";
 import crypto from "crypto";
 
-const SESSION_COOKIE = "surakhsa_session";
+const SESSION_COOKIE = "casepilot_session";
+const LEGACY_SESSION_COOKIE = "surakhsa_session";
 
 export async function createSession(phone: string) {
   const cleanPhone = phone.trim().replace(/\D/g, "");
@@ -113,7 +114,7 @@ export async function createSession(phone: string) {
 
 export async function getSession(): Promise<{ session: SessionDoc; user: UserDoc } | null> {
   const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
+  const token = cookieStore.get(SESSION_COOKIE)?.value || cookieStore.get(LEGACY_SESSION_COOKIE)?.value;
   if (!token) return null;
 
   try {
@@ -151,7 +152,7 @@ export async function getSession(): Promise<{ session: SessionDoc; user: UserDoc
 
 export async function destroySession() {
   const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
+  const token = cookieStore.get(SESSION_COOKIE)?.value || cookieStore.get(LEGACY_SESSION_COOKIE)?.value;
 
   if (token) {
     try {
@@ -166,4 +167,5 @@ export async function destroySession() {
   }
 
   cookieStore.delete(SESSION_COOKIE);
+  cookieStore.delete(LEGACY_SESSION_COOKIE);
 }

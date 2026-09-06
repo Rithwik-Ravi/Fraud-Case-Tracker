@@ -46,7 +46,7 @@ async function classifyWithOpenAI(narrative: string, apiKey: string): Promise<Tr
   const openai = new OpenAI({ apiKey, timeout: 8000 });
 
   const categoryList = CATEGORIES.map(
-    (c) => `  • id="${c.id}" | label="${c.label}" | parent="${c.parent}" | urgency="${c.defaultUrgency}"`
+    (c) => `  - id="${c.id}" | label="${c.label}" | parent="${c.parent}" | urgency="${c.defaultUrgency}"`
   ).join("\n");
 
   const systemPrompt = `You are a cybercrime classification assistant for India's NCRP (National Cyber Crime Reporting Portal).

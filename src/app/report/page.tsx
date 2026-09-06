@@ -104,27 +104,27 @@ export default function ReportPage() {
     const pageW = doc.internal.pageSize.getWidth();
 
     // Header
-    doc.setFillColor(31, 91, 152);
+    doc.setFillColor(11, 12, 12);
     doc.rect(0, 0, pageW, 28, "F");
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
     doc.setTextColor(255, 255, 255);
-    doc.text("Surakhsa — Complaint Confirmation", 14, 12);
+    doc.text("CasePilot — Incident Confirmation", 14, 12);
     doc.setFontSize(8);
     doc.setFont("helvetica", "normal");
-    doc.text("Independent Hackathon Prototype · Not an official government document", 14, 20);
+    doc.text("Independent Civic Prototype (Synthetic Demonstration Record)", 14, 20);
 
     // Body
-    doc.setTextColor(26, 35, 50);
+    doc.setTextColor(11, 12, 12);
     let y = 36;
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
     doc.text("Acknowledgement Number", 14, y); y += 6;
     doc.setFontSize(18);
-    doc.setTextColor(31, 91, 152);
+    doc.setTextColor(29, 112, 184);
     doc.text(ackNumber, 14, y); y += 10;
-    doc.setTextColor(26, 35, 50);
+    doc.setTextColor(11, 12, 12);
 
     const row = (label: string, value: string) => {
       doc.setFont("helvetica", "bold"); doc.setFontSize(9);
@@ -163,16 +163,16 @@ export default function ReportPage() {
 
     // Footer
     const pageH = doc.internal.pageSize.getHeight();
-    doc.setFillColor(245, 247, 250);
+    doc.setFillColor(248, 249, 250);
     doc.rect(0, pageH - 18, pageW, 18, "F");
     doc.setFont("helvetica", "italic"); doc.setFontSize(7.5);
-    doc.setTextColor(90, 110, 132);
+    doc.setTextColor(80, 90, 95);
     doc.text(
       "Not an official government record. For a legally recognized complaint, visit cybercrime.gov.in or call 1930.",
       14, pageH - 10
     );
 
-    doc.save(`Surakhsa-Complaint-${ackNumber}.pdf`);
+    doc.save(`CasePilot-Complaint-${ackNumber}.pdf`);
   };
 
 
@@ -355,10 +355,14 @@ export default function ReportPage() {
         setErrorMessage(res.error || "Failed to submit report. Please try again.");
       } else {
         try {
-          const stored = JSON.parse(localStorage.getItem("surakhsa.recentAcks.v1") || "[]");
+          const stored = JSON.parse(
+            localStorage.getItem("casepilot.recentAcks.v1") ||
+            localStorage.getItem("surakhsa.recentAcks.v1") ||
+            "[]"
+          );
           if (!stored.includes(res.ack)) {
             stored.unshift(res.ack);
-            localStorage.setItem("surakhsa.recentAcks.v1", JSON.stringify(stored.slice(0, 20)));
+            localStorage.setItem("casepilot.recentAcks.v1", JSON.stringify(stored.slice(0, 20)));
           }
         } catch {}
         setAckNumber(res.ack);
@@ -859,11 +863,11 @@ export default function ReportPage() {
                   onClick={() => setCurrentStep("EVIDENCE")}
                   className="text-sm font-semibold text-ink-600 hover:text-ink-900 underline"
                 >
-                  Skip freeze request for now →
+                  Skip freeze request for now
                 </button>
 
                 <Button type="submit" variant="danger" disabled={freezeLoading} className="py-3 px-6 text-base">
-                  {freezeLoading ? "Transmitting freeze request..." : "Dispatch Immediate Bank Freeze →"}
+                  {freezeLoading ? "Transmitting freeze request..." : "Dispatch Immediate Bank Freeze"}
                 </Button>
               </div>
             </form>
@@ -989,7 +993,7 @@ export default function ReportPage() {
                 onClick={() => setCurrentStep(triageResult?.isFinancialFraud ? "FREEZE" : "NARRATIVE")}
                 className="text-sm font-semibold text-ink-600 hover:text-ink-900"
               >
-                ← Back
+                Back
               </button>
 
               <Button
@@ -998,7 +1002,7 @@ export default function ReportPage() {
                 onClick={() => setCurrentStep("REVIEW")}
                 className="py-3 px-6 text-base"
               >
-                Proceed to Review →
+                Proceed to Review
               </Button>
             </div>
           </Card>
@@ -1081,7 +1085,7 @@ export default function ReportPage() {
                 onClick={() => setCurrentStep("EVIDENCE")}
                 className="text-sm font-semibold text-ink-600 hover:text-ink-900"
               >
-                ← Edit Details
+                Edit Details
               </button>
 
               <Button
@@ -1089,9 +1093,9 @@ export default function ReportPage() {
                 variant="primary"
                 onClick={handleFinalSubmit}
                 disabled={submitting}
-                className="py-3.5 px-8 text-lg font-bold shadow-md"
+                className="py-3.5 px-8 text-lg font-bold"
               >
-                {submitting ? "Registering in MongoDB..." : "File Official Complaint →"}
+                {submitting ? "Registering in MongoDB..." : "File Official Complaint"}
               </Button>
             </div>
           </Card>

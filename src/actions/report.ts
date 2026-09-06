@@ -4,7 +4,8 @@ import { getCollections, getFallbackStore, ComplaintDoc } from "@/lib/mongodb";
 import { classifyNarrative, TriageResult } from "@/lib/triage";
 import { cookies } from "next/headers";
 
-const SESSION_COOKIE = "surakhsa_session";
+const SESSION_COOKIE = "casepilot_session";
+const LEGACY_SESSION_COOKIE = "surakhsa_session";
 
 export async function triageIncidentAction(description: string): Promise<{
   error?: string;
@@ -35,7 +36,7 @@ export async function requestFreezeAction(bankAccount: string, amount: number) {
 export async function saveDraftAction(draftId: string, step: string, data: Record<string, any>) {
   try {
     const cookieStore = await cookies();
-    const token = cookieStore.get(SESSION_COOKIE)?.value;
+    const token = cookieStore.get(SESSION_COOKIE)?.value || cookieStore.get(LEGACY_SESSION_COOKIE)?.value;
     const collections = await getCollections();
 
     let phone: string | undefined;
@@ -87,7 +88,7 @@ export async function submitComplaintAction(data: {
 
   try {
     const cookieStore = await cookies();
-    const token = cookieStore.get(SESSION_COOKIE)?.value;
+    const token = cookieStore.get(SESSION_COOKIE)?.value || cookieStore.get(LEGACY_SESSION_COOKIE)?.value;
 
     let phone: string | undefined = data.phone ? data.phone.trim().replace(/\D/g, "") : undefined;
 

@@ -21,6 +21,7 @@ function loadEnv() {
 async function main() {
   const env = loadEnv();
   const uri = env.MONGODB_URI || process.env.MONGODB_URI;
+  // Preserved fallback database name "Saarthi" for existing MongoDB Atlas cluster compatibility
   const dbName = env.MONGODB_DB || process.env.MONGODB_DB || "Saarthi";
 
   if (!uri) {

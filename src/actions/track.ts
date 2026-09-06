@@ -3,7 +3,8 @@
 import { getCollections, getFallbackStore, ComplaintDoc, UserProfile, DEFAULT_MOCK_PROFILE } from "@/lib/mongodb";
 import { cookies } from "next/headers";
 
-const SESSION_COOKIE = "surakhsa_session";
+const SESSION_COOKIE = "casepilot_session";
+const LEGACY_SESSION_COOKIE = "surakhsa_session";
 
 export interface SerializedComplaint {
   ack: string;
@@ -23,6 +24,7 @@ export interface SerializedComplaint {
   evidenceFiles?: Array<{ name: string; size: number; sha256: string }>;
   policeUnitAssigned?: string;
   daysRemainingInSla?: number;
+  isSimulatedDemo?: boolean;
 }
 
 export async function trackComplaint(ackNumber: string): Promise<{
@@ -113,7 +115,7 @@ export async function getUserComplaints(clientRecentAcks?: string[]): Promise<{
 }> {
   try {
     const cookieStore = await cookies();
-    const token = cookieStore.get(SESSION_COOKIE)?.value;
+    const token = cookieStore.get(SESSION_COOKIE)?.value || cookieStore.get(LEGACY_SESSION_COOKIE)?.value;
     if (!token) {
       return { signedIn: false, complaints: [] };
     }

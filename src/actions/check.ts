@@ -3,7 +3,8 @@
 import { getCollections, getFallbackStore, SuspectCheckDoc, SuspectReportDoc } from "@/lib/mongodb";
 import { cookies } from "next/headers";
 
-const SESSION_COOKIE = "surakhsa_session";
+const SESSION_COOKIE = "casepilot_session";
+const LEGACY_SESSION_COOKIE = "surakhsa_session";
 
 export interface CheckVerdict {
   query: string;
@@ -156,7 +157,7 @@ export async function reportSuspectAction(suspectValue: string, reason: string):
 
   try {
     const cookieStore = await cookies();
-    const token = cookieStore.get(SESSION_COOKIE)?.value;
+    const token = cookieStore.get(SESSION_COOKIE)?.value || cookieStore.get(LEGACY_SESSION_COOKIE)?.value;
 
     let phone: string | undefined;
 

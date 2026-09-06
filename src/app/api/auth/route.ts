@@ -2,18 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCollections, getFallbackStore, DEFAULT_MOCK_PROFILE, UserProfile } from "@/lib/mongodb";
 import crypto from "crypto";
 
-const SESSION_COOKIE = "surakhsa_session";
+const SESSION_COOKIE = "casepilot_session";
+const LEGACY_SESSION_COOKIE = "surakhsa_session";
 
 function generateDeterministicOtp(phone: string): string {
   // Deterministic 6-digit OTP for testing based on phone number
-  const hash = crypto.createHash("sha256").update(phone + "surakhsa_salt_2026").digest("hex");
+  const hash = crypto.createHash("sha256").update(phone + "casepilot_salt_2026").digest("hex");
   const num = (parseInt(hash.slice(0, 8), 16) % 900000) + 100000;
   return num.toString();
 }
 
 export async function GET(req: NextRequest) {
   try {
-    const token = req.cookies.get(SESSION_COOKIE)?.value;
+    const token = req.cookies.get(SESSION_COOKIE)?.value || req.cookies.get(LEGACY_SESSION_COOKIE)?.value;
     if (!token) {
       return NextResponse.json({ phone: null, profile: null });
     }
@@ -338,7 +339,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === "signout") {
-      const token = req.cookies.get(SESSION_COOKIE)?.value;
+      const token = req.cookies.get(SESSION_COOKIE)?.value || req.cookies.get(LEGACY_SESSION_COOKIE)?.value;
       if (token) {
         try {
           const collections = await getCollections();
@@ -354,6 +355,13 @@ export async function POST(req: NextRequest) {
       const response = NextResponse.json({ ok: true });
       response.cookies.set({
         name: SESSION_COOKIE,
+        value: "",
+        httpOnly: true,
+        path: "/",
+        maxAge: 0,
+      });
+      response.cookies.set({
+        name: LEGACY_SESSION_COOKIE,
         value: "",
         httpOnly: true,
         path: "/",

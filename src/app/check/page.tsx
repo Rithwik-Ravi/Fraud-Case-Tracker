@@ -156,7 +156,7 @@ export default function CheckPage() {
 
           <div className="flex justify-end pt-2">
             <Button type="submit" variant="primary" disabled={loading || !inputVal.trim()} className="py-2.5 px-6">
-              {loading ? "Analyzing..." : "Inspect Identifier →"}
+              {loading ? "Analyzing..." : "Inspect Identifier"}
             </Button>
           </div>
         </form>
@@ -236,7 +236,7 @@ export default function CheckPage() {
               <ul className="space-y-2 text-sm leading-relaxed text-ink-800">
                 {verdict.reasons.map((r, idx) => (
                   <li key={idx} className="flex items-start gap-2">
-                    <span className="text-brand-600 font-bold">•</span>
+                    <span aria-hidden="true" className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-600" />
                     <span>{r}</span>
                   </li>
                 ))}
@@ -254,7 +254,7 @@ export default function CheckPage() {
 
                 {verdict.verdict === "danger" && (
                   <Button href="/report" variant="danger" size="sm">
-                    Report as Victim Crime →
+                    File Crime Complaint
                   </Button>
                 )}
               </div>
