@@ -3,6 +3,7 @@ import "./globals.css";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import AppProviders from "@/components/providers/AppProviders";
+import AIChatbot from "@/components/chat/AIChatbot";
 
 export const metadata: Metadata = {
   title: "CasePilot — Citizen Cyber Triage & Incident Routing",
@@ -43,6 +44,7 @@ export default function RootLayout({
             {children}
           </main>
           <Footer />
+          <AIChatbot />
         </AppProviders>
       </body>
     </html>
