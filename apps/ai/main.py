@@ -73,6 +73,20 @@ async def triage_endpoint(req: TriageRequest):
     cat_id = intake_resp.categoryId or intake_resp.flow_id or "other_cybercrime"
     known_cat = CATEGORY_LOOKUP.get(cat_id, CATEGORY_LOOKUP.get("other_cybercrime", {}))
 
+    # Reconcile extracted fields dictionary
+    extracted_fields = dict(intake_resp.case_updates or {})
+    if intake_resp.detectedAmount is not None and "amount" not in extracted_fields:
+        extracted_fields["amount"] = intake_resp.detectedAmount
+    if "fraudAmount" in extracted_fields and "amount" not in extracted_fields:
+        try:
+            extracted_fields["amount"] = float(str(extracted_fields["fraudAmount"]).replace(",", ""))
+        except Exception:
+            pass
+    if "beneficiaryAccount" in extracted_fields and "suspectAccount" not in extracted_fields:
+        extracted_fields["suspectAccount"] = extracted_fields["beneficiaryAccount"]
+    if "offenderHandle" in extracted_fields and "suspectHandle" not in extracted_fields:
+        extracted_fields["suspectHandle"] = extracted_fields["offenderHandle"]
+
     return TriageResponse(
         categoryId=cat_id,
         categoryLabel=intake_resp.categoryLabel or known_cat.get("label", cat_id),
@@ -83,7 +97,9 @@ async def triage_endpoint(req: TriageRequest):
         moneyMoved=intake_resp.moneyMoved,
         reasoning=intake_resp.reasoning or "Classified by CasePilot AI engine.",
         isDigitalArrest=intake_resp.isDigitalArrest,
-        source="ai" if intake_resp.tokens_used > 0 else "deterministic"
+        source="ai" if intake_resp.tokens_used > 0 else "deterministic",
+        extractedFields=extracted_fields,
+        extractedPills=intake_resp.extracted_pills or []
     )
 
 @app.post("/api/ai/intake", response_model=IntakeResponse)

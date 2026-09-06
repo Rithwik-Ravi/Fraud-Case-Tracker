@@ -15,15 +15,20 @@ Key Rules & Guidelines:
 1. CALM & DIRECT: Speak with calm authority. Citizens talking to you may be terrified, under active extortion, or suffering financial loss.
 2. DIGITAL ARREST DEBUNKING: If a user mentions a call from CBI, Police, ED, Customs, or Narcotics threatening arrest on video or phone:
    - State immediately and clearly: "There is no Digital Arrest in Indian law. No government officer can arrest you over a phone or video call. Hang up immediately."
-   - Advise them never to transfer money to "escrow" or "safe" accounts.
-3. GOLDEN HOUR INTERVENTION: If money was transferred or debited within the last 1-2 hours:
+   - Direct them to disconnect immediately and view our Emergency Intercept at /digital-arrest.
+3. CIVIL DISPUTES & NON-CYBER DEFLECTION:
+   - Consumer / E-commerce disputes (defective items, refund delays, seller disputes): Direct to National Consumer Helpline (Call 1915 or visit consumerhelpline.gov.in) instead of cyber police.
+   - Physically lost or stolen mobile phones: Direct to CEIR (Sanchar Saathi at ceir.gov.in) to block the device IMEI and trace it.
+   - Unauthorized SIM cards in their name: Direct to DoT TAFCOP (tafcop.sancharsaathi.gov.in).
+4. COMPLAINT FILING WORKFLOW (AI AUTO-FILL):
+   - When a citizen is ready to report a cybercrime, guide them to /report.
+   - Explain that they do NOT need to fill a tedious 40-box form: they simply describe what happened in their own words or voice in Step 1, and our AI engine automatically fills in all the statutory boxes (bank, amount, UTR, suspect handles, police jurisdiction).
+5. GOLDEN HOUR INTERVENTION: If money was transferred or debited within the last 1-2 hours:
    - Tell them the first 120 minutes are the critical "Golden Hour".
-   - Advise them to immediately call the National Cyber Crime Helpline at 1930 and file a banking freeze request on CasePilot (/report?urgency=golden-hour).
-   - Tell them to note their 12-digit UTR/transaction reference, debit bank name, and recipient UPI/account number.
-4. STATUTORY RIGHTS & BNSS: Mention statutory case tracking under Bharatiya Nagarik Suraksha Sanhita (BNSS) Section 173(3) and Section 503 for fund lien restitution.
-5. EVIDENCE INTEGRITY: Remind them to keep screenshots, chat logs, call records, and transaction receipts, without altering them.
-6. NOT LEGAL COUNSEL: Provide clear procedural and practical guidance, but remind them that formal complaints must be registered with official law enforcement via 1930, cybercrime.gov.in, or nearest Cyber Police Station.
-7. Keep responses concise, structured with clear bullet points or steps, and easy to read on mobile. Avoid verbose fluff.`;
+   - Advise them to immediately call 1930 and file a banking freeze request on CasePilot (/report?urgency=golden-hour).
+6. STATUTORY RIGHTS & BNSS: Mention statutory case tracking under Bharatiya Nagarik Suraksha Sanhita (BNSS) Section 173(3) and Section 503 for fund lien restitution.
+7. EVIDENCE INTEGRITY: Remind them to keep screenshots, chat logs, call records, and transaction receipts without altering them (BSA Section 63 compliant).
+8. Keep responses concise, formatted with clear bullet points, and easy to read on mobile.`;
 
 export async function POST(req: NextRequest) {
   try {
@@ -120,7 +125,61 @@ function generateFallbackResponse(text: string): string {
       `4. Dial 1930 or file a report on our portal to alert authorities.`;
   }
 
-  // 2. Financial loss / Golden hour signals
+  // 2. Civil / Consumer Dispute Deflection (Not cybercrime)
+  if (
+    lower.includes("consumer") ||
+    lower.includes("ecommerce") ||
+    lower.includes("e-commerce") ||
+    lower.includes("flipkart refund") ||
+    lower.includes("amazon refund") ||
+    lower.includes("defective product") ||
+    lower.includes("order delay") ||
+    lower.includes("seller dispute")
+  ) {
+    return `CIVIL CONSUMER GRIEVANCE ADVISORY:\n\n` +
+      `This appears to be a civil commercial dispute rather than a criminal cyber offence.\n\n` +
+      `How to resolve:\n` +
+      `1. National Consumer Helpline (NCH): Dial toll-free 1915 or register online at consumerhelpline.gov.in.\n` +
+      `2. E-Daakhil Portal: If unaddressed by the seller, file a consumer case at edaakhil.nic.in.\n` +
+      `3. Note: If the seller took money via an unauthorized phishing payment link or fake customer care number, file a formal cyber report on CasePilot (/report).`;
+  }
+
+  // 3. Lost / Stolen Handset Deflection
+  if (
+    lower.includes("lost phone") ||
+    lower.includes("stolen phone") ||
+    lower.includes("lost mobile") ||
+    lower.includes("imei block") ||
+    lower.includes("lost device")
+  ) {
+    return `LOST / STOLEN MOBILE DEVICE PROTOCOL:\n\n` +
+      `For physically lost or stolen smartphones, Indian law provides the Central Equipment Identity Register (CEIR):\n\n` +
+      `1. Visit the Official Sanchar Saathi portal: ceir.sancharsaathi.gov.in\n` +
+      `2. Submit a "Block Stolen/Lost Mobile" request with your 15-digit IMEI number.\n` +
+      `3. The device will be blacklisted across all Indian telecom networks (Airtel, Jio, Vi, BSNL) preventing misuse.\n` +
+      `4. File a Lost Property Notification at your local police station online portal.`;
+  }
+
+  // 4. Filing Flow & AI Auto-Fill guidance
+  if (
+    lower.includes("file complaint") ||
+    lower.includes("how to report") ||
+    lower.includes("register case") ||
+    lower.includes("how to file")
+  ) {
+    return `HOW TO FILE A COMPLAINT ON CASEPILOT:\n\n` +
+      `You do NOT need to fill out a confusing 40-question government form. Our system is built with AI-assisted intake:\n\n` +
+      `1. Visit the Report Incident page (/report).\n` +
+      `2. Speak or type your story in Step 1 in your own words (English, Hindi, or Hinglish).\n` +
+      `3. Our AI Engine analyzes your statement and automatically populates all required boxes:\n` +
+      `   • Official NCRP Category & Urgency\n` +
+      `   • Bank name, amount, and 12-digit UTR\n` +
+      `   • Suspect phone, handles, and URLs\n` +
+      `   • Incident channel and local Cyber Police Station\n` +
+      `4. Review the pre-filled details, attach screenshots, and instantly receive your official tracking ACK-YYYY-XXXXXX and stamped confirmation PDF.`;
+  }
+
+  // 5. Financial loss / Golden hour signals
   if (
     lower.includes("money") ||
     lower.includes("debited") ||
@@ -143,7 +202,7 @@ function generateFallbackResponse(text: string): string {
       `4. Call your bank's emergency debit-card / UPI hotlisting helpline to prevent further debits.`;
   }
 
-  // 3. Blackmail, sextortion, impersonation
+  // 6. Blackmail, sextortion, impersonation
   if (
     lower.includes("blackmail") ||
     lower.includes("photos") ||
@@ -161,7 +220,7 @@ function generateFallbackResponse(text: string): string {
       `5. File a formal complaint immediately on CasePilot (/report) or call 1930.`;
   }
 
-  // 4. Case tracking / SLA
+  // 7. Case tracking / SLA
   if (
     lower.includes("track") ||
     lower.includes("status") ||

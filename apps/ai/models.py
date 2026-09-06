@@ -168,6 +168,8 @@ class TriageResponse(BaseModel):
     reasoning: str
     isDigitalArrest: bool = False
     source: Literal['ai', 'deterministic'] = 'ai'
+    extractedFields: Dict[str, Any] = Field(default_factory=dict)
+    extractedPills: List[str] = Field(default_factory=list)
 
 class ConflictResolutionRequest(BaseModel):
     conflict_id: str

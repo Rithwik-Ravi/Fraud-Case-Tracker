@@ -78,8 +78,36 @@ export async function submitComplaintAction(data: {
   bankAccount?: string;
   bankName?: string;
   transactionId?: string;
+  suspectAccount?: string;
+  paymentMode?: string;
   freezeRequested: boolean;
-  evidenceFiles?: Array<{ name: string; size: number; sha256: string }>;
+  incidentDate?: string;
+  platformChannel?: string;
+  delayReason?: string;
+  suspectDetails?: {
+    name?: string;
+    mobile?: string;
+    account?: string;
+    handle?: string;
+    website?: string;
+    details?: string;
+  };
+  complainantKYC?: {
+    fullName?: string;
+    email?: string;
+    phone?: string;
+    gender?: string;
+    dob?: string;
+    idType?: string;
+    idNumber?: string;
+    state?: string;
+    district?: string;
+    policeStation?: string;
+    address?: string;
+    pincode?: string;
+  };
+  undertakingAccepted?: boolean;
+  evidenceFiles?: Array<{ name: string; size: number; sha256: string; category?: string }>;
   phone?: string;
 }): Promise<{ success: boolean; ack?: string; error?: string }> {
   // Generate ACK number in NCRP standard format: ACK-YYYY-XXXXXX
@@ -90,7 +118,7 @@ export async function submitComplaintAction(data: {
     const cookieStore = await cookies();
     const token = cookieStore.get(SESSION_COOKIE)?.value || cookieStore.get(LEGACY_SESSION_COOKIE)?.value;
 
-    let phone: string | undefined = data.phone ? data.phone.trim().replace(/\D/g, "") : undefined;
+    let phone: string | undefined = data.complainantKYC?.phone || (data.phone ? data.phone.trim().replace(/\D/g, "") : undefined);
 
     // Check fallback session if phone not provided directly
     if (!phone && token) {
@@ -110,9 +138,17 @@ export async function submitComplaintAction(data: {
       bankAccount: data.bankAccount,
       bankName: data.bankName,
       transactionId: data.transactionId,
+      suspectAccount: data.suspectAccount,
+      paymentMode: data.paymentMode,
       freezeRequested: data.freezeRequested,
       stage: data.freezeRequested ? 2 : 1, // Stage 1: Filed, Stage 2: Freeze Underway
       createdAt: new Date(),
+      incidentDate: data.incidentDate,
+      platformChannel: data.platformChannel,
+      delayReason: data.delayReason,
+      suspectDetails: data.suspectDetails,
+      complainantKYC: data.complainantKYC,
+      undertakingAccepted: data.undertakingAccepted,
       evidenceFiles: data.evidenceFiles,
     };
 

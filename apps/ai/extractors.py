@@ -47,7 +47,7 @@ JSON Schema:
   }},
   "proposed_facts": [
     {{
-      "field": "fraudAmount | bankName | utrNumber | paymentMode | beneficiaryAccount | socialPlatform | offenderHandle | affectedService | recoveryChanged | fileExtension | ransomDemanded | channel | incidentDate | incidentDescription | remoteAccessApp",
+      "field": "fraudAmount | bankName | utrNumber | paymentMode | beneficiaryAccount | suspectAccount | suspectName | suspectPhone | suspectHandle | suspectWebsite | socialPlatform | offenderHandle | channel | incidentDate | delayReason | affectedService | remoteAccessApp | incidentDescription",
       "value": "Clean extracted value",
       "confidence": 0.98,
       "raw_quote": "Exact substring from citizen message"
@@ -56,7 +56,8 @@ JSON Schema:
   "extracted_pills": [
     "Category: UPI Fraud",
     "Loss: ₹75,000",
-    "Bank: SBI"
+    "Bank: SBI",
+    "Suspect: @fraud_handle"
   ],
   "acknowledgement": "1 concise sentence acknowledging the facts reported."
 }}
@@ -386,25 +387,57 @@ class FactExtractor:
                 ))
                 break
 
-        # 7. Social Media Handles & Platforms
+        # 7. Social Media Handles & Suspect Account
         handle_match = re.search(r'(?<!\w)@([a-zA-Z0-9_\.]{3,30})\b', text)
         if handle_match:
+            h_val = f"@{handle_match.group(1)}"
+            facts.append(ProposedFact(field='offenderHandle', value=h_val, confidence=0.98, source='local_regex', raw_quote=handle_match.group(0)))
+            facts.append(ProposedFact(field='suspectHandle', value=h_val, confidence=0.98, source='local_regex'))
+
+        # 8. Suspect Mobile Numbers (10 digits starting with 6-9 or +91)
+        phone_match = re.search(r'(?:\+91[\s-]?)?([6-9]\d{9})\b', text)
+        if phone_match:
             facts.append(ProposedFact(
-                field='offenderHandle',
-                value=f"@{handle_match.group(1)}",
-                confidence=0.98,
+                field='suspectPhone',
+                value=phone_match.group(1),
+                confidence=0.92,
                 source='local_regex',
-                raw_quote=handle_match.group(0)
+                raw_quote=phone_match.group(0)
             ))
 
-        if 'instagram' in lower or 'insta' in lower:
-            facts.append(ProposedFact(field='socialPlatform', value='Instagram', confidence=0.99))
-        elif 'telegram' in lower or 'tg' in lower:
-            facts.append(ProposedFact(field='socialPlatform', value='Telegram', confidence=0.99))
-        elif 'whatsapp' in lower or 'wa' in lower:
+        # 9. Channels & Platforms
+        if 'whatsapp' in lower or 'wa' in lower:
+            facts.append(ProposedFact(field='channel', value='WhatsApp', confidence=0.99))
             facts.append(ProposedFact(field='socialPlatform', value='WhatsApp', confidence=0.99))
-        elif 'facebook' in lower or 'fb' in lower:
-            facts.append(ProposedFact(field='socialPlatform', value='Facebook', confidence=0.99))
+        elif 'telegram' in lower or 'tg' in lower:
+            facts.append(ProposedFact(field='channel', value='Telegram', confidence=0.99))
+            facts.append(ProposedFact(field='socialPlatform', value='Telegram', confidence=0.99))
+        elif 'instagram' in lower or 'insta' in lower:
+            facts.append(ProposedFact(field='channel', value='Instagram', confidence=0.99))
+            facts.append(ProposedFact(field='socialPlatform', value='Instagram', confidence=0.99))
+        elif 'sms' in lower or 'text message' in lower:
+            facts.append(ProposedFact(field='channel', value='SMS', confidence=0.95))
+        elif 'call' in lower or 'phone' in lower:
+            facts.append(ProposedFact(field='channel', value='Phone Call', confidence=0.92))
+        elif 'apk' in lower:
+            facts.append(ProposedFact(field='channel', value='Malicious APK', confidence=0.95))
+
+        # 10. Suspect Website / Links
+        url_match = re.search(r'https?://[^\s]+|\b[\w-]+\.(?:apk|xyz|top|site|club|online|ru)\b', text, re.IGNORECASE)
+        if url_match:
+            facts.append(ProposedFact(
+                field='suspectWebsite',
+                value=url_match.group(0),
+                confidence=0.95,
+                source='local_regex',
+                raw_quote=url_match.group(0)
+            ))
+
+        # 11. Incident Time Indicators
+        if 'today' in lower or 'aaj' in lower:
+            facts.append(ProposedFact(field='incidentDate', value='Today', confidence=0.90, source='local_regex'))
+        elif 'yesterday' in lower or 'kal' in lower:
+            facts.append(ProposedFact(field='incidentDate', value='Yesterday', confidence=0.90, source='local_regex'))
 
         return facts
 

@@ -185,6 +185,22 @@ export const CATEGORIES: Category[] = [
   },
 ];
 
+export interface ExtractedFields {
+  bankName?: string;
+  bankAccount?: string;
+  suspectAccount?: string;
+  suspectName?: string;
+  suspectPhone?: string;
+  suspectHandle?: string;
+  suspectWebsite?: string;
+  amount?: number;
+  utrNumber?: string;
+  paymentMode?: string;
+  channel?: string;
+  incidentDate?: string;
+  delayReason?: string;
+}
+
 export interface TriageResult {
   categoryId: string;
   categoryLabel: string;
@@ -198,6 +214,10 @@ export interface TriageResult {
   isDigitalArrest?: boolean;
   /** Identifies whether the result came from AI or the deterministic rule engine */
   source?: "ai" | "deterministic";
+  /** Structured form fields extracted from narrative */
+  extractedFields?: ExtractedFields;
+  /** Key fact pills for visual UI display */
+  extractedPills?: string[];
 }
 
 export function parseFinancialAmount(text?: string | null): number | undefined {
@@ -235,7 +255,124 @@ export function parseFinancialAmount(text?: string | null): number | undefined {
   return undefined;
 }
 
+export function extractDeterministicFields(safeText: string, detectedAmount?: number): ExtractedFields {
+  const lower = safeText.toLowerCase();
+  const fields: ExtractedFields = {};
+
+  if (detectedAmount) {
+    fields.amount = detectedAmount;
+  }
+
+  // 1. Bank Names
+  const bankMap: Record<string, string> = {
+    "state bank of india": "State Bank of India",
+    sbi: "State Bank of India",
+    hdfc: "HDFC Bank",
+    icici: "ICICI Bank",
+    axis: "Axis Bank",
+    pnb: "Punjab National Bank",
+    "punjab national bank": "Punjab National Bank",
+    bob: "Bank of Baroda",
+    "bank of baroda": "Bank of Baroda",
+    kotak: "Kotak Mahindra Bank",
+    canara: "Canara Bank",
+    indusind: "IndusInd Bank",
+    "union bank": "Union Bank of India",
+    paytm: "Paytm Payments Bank",
+  };
+  for (const [kw, canonical] of Object.entries(bankMap)) {
+    if (new RegExp(`\\b${kw}\\b`, "i").test(safeText)) {
+      fields.bankName = canonical;
+      break;
+    }
+  }
+
+  // 2. 12-digit UTR
+  const utrMatch = safeText.match(/\b([0-9]{12})\b/);
+  if (utrMatch) {
+    fields.utrNumber = utrMatch[1];
+  }
+
+  // 3. Suspect Account / UPI ID
+  const vpaMatch = safeText.match(/([a-zA-Z0-9.\-_]{2,64}@[a-zA-Z]{2,64})/);
+  if (vpaMatch && !vpaMatch[1].endsWith(".com") && !vpaMatch[1].endsWith(".org")) {
+    fields.suspectAccount = vpaMatch[1];
+  }
+
+  // 4. Suspect Mobile Phone
+  const phoneMatch = safeText.match(/(?:\+91[\s-]?)?([6-9]\d{9})\b/);
+  if (phoneMatch) {
+    fields.suspectPhone = phoneMatch[1];
+  }
+
+  // 5. Suspect Social Handle
+  const handleMatch = safeText.match(/(?<!\w)@([a-zA-Z0-9_\.]{3,30})\b/);
+  if (handleMatch) {
+    fields.suspectHandle = `@${handleMatch[1]}`;
+  }
+
+  // 6. Payment Mode
+  if (/\b(?:upi|gpay|google pay|phonepe|paytm|vpa)\b/i.test(safeText)) {
+    fields.paymentMode = "UPI";
+  } else if (/\b(?:net banking|netbanking|neft|rtgs|imps)\b/i.test(safeText)) {
+    fields.paymentMode = "Net Banking";
+  } else if (/\b(?:credit card|debit card|atm|pos|card)\b/i.test(safeText)) {
+    fields.paymentMode = "Credit/Debit Card";
+  }
+
+  // 7. Channel
+  if (/\b(?:whatsapp|wa)\b/i.test(safeText)) {
+    fields.channel = "WhatsApp";
+  } else if (/\b(?:telegram|tg)\b/i.test(safeText)) {
+    fields.channel = "Telegram";
+  } else if (/\b(?:instagram|insta)\b/i.test(safeText)) {
+    fields.channel = "Instagram";
+  } else if (/\b(?:sms|text message)\b/i.test(safeText)) {
+    fields.channel = "SMS";
+  } else if (/\b(?:call|phone call|called me)\b/i.test(safeText)) {
+    fields.channel = "Phone Call";
+  } else if (/\b(?:apk|application|installed)\b/i.test(safeText)) {
+    fields.channel = "Malicious APK";
+  }
+
+  // 8. Incident Date
+  if (/\b(?:today|aaj)\b/i.test(safeText)) {
+    fields.incidentDate = "Today";
+  } else if (/\b(?:yesterday|kal)\b/i.test(safeText)) {
+    fields.incidentDate = "Yesterday";
+  }
+
+  return fields;
+}
+
 export function classifyNarrative(narrative?: string | null): TriageResult {
+  const result = classifyNarrativeCore(narrative);
+  const safeText = (narrative || "").slice(0, 5000);
+  const detectedAmount = parseFinancialAmount(safeText);
+  result.extractedFields = extractDeterministicFields(safeText, detectedAmount);
+  
+  // Build extracted pills for UI display
+  const pills: string[] = [`Category: ${result.categoryLabel}`];
+  if (result.detectedAmount) {
+    pills.push(`Loss: ₹${result.detectedAmount.toLocaleString("en-IN")}`);
+  }
+  if (result.extractedFields?.bankName) {
+    pills.push(`Bank: ${result.extractedFields.bankName}`);
+  }
+  if (result.extractedFields?.utrNumber) {
+    pills.push(`UTR: ${result.extractedFields.utrNumber}`);
+  }
+  if (result.extractedFields?.suspectAccount) {
+    pills.push(`Suspect: ${result.extractedFields.suspectAccount}`);
+  }
+  if (result.extractedFields?.channel) {
+    pills.push(`Channel: ${result.extractedFields.channel}`);
+  }
+  result.extractedPills = pills;
+  return result;
+}
+
+function classifyNarrativeCore(narrative?: string | null): TriageResult {
   // Safe input coercion
   if (!narrative || typeof narrative !== "string") {
     narrative = "";

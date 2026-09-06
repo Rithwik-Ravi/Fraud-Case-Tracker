@@ -130,13 +130,42 @@ export interface ComplaintDoc {
   bankAccount?: string;
   bankName?: string;
   transactionId?: string;
+  suspectAccount?: string;
+  paymentMode?: string;
   freezeRequested: boolean;
   stage: number;
   createdAt: Date;
+  incidentDate?: string;
+  platformChannel?: string;
+  delayReason?: string;
+  suspectDetails?: {
+    name?: string;
+    mobile?: string;
+    account?: string;
+    handle?: string;
+    website?: string;
+    details?: string;
+  };
+  complainantKYC?: {
+    fullName?: string;
+    email?: string;
+    phone?: string;
+    gender?: string;
+    dob?: string;
+    idType?: string;
+    idNumber?: string;
+    state?: string;
+    district?: string;
+    policeStation?: string;
+    address?: string;
+    pincode?: string;
+  };
+  undertakingAccepted?: boolean;
   evidenceFiles?: Array<{
     name: string;
     size: number;
     sha256: string;
+    category?: string;
   }>;
 }
 

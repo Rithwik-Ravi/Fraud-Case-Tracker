@@ -68,18 +68,21 @@ async function classifyWithOpenAI(narrative: string, apiKey: string): Promise<Tr
     (c) => `  - id="${c.id}" | label="${c.label}" | parent="${c.parent}" | urgency="${c.defaultUrgency}"`
   ).join("\n");
 
-  const systemPrompt = `You are a cybercrime classification assistant for India's NCRP (National Cyber Crime Reporting Portal).
-Your job is to classify a victim's free-text narrative into one of the official categories below.
+  const systemPrompt = `You are a cybercrime classification and entity extraction assistant for India's NCRP (National Cyber Crime Reporting Portal).
+Your job is to:
+1. Classify a victim's narrative into one of the official 21 categories below.
+2. Extract all concrete factual entities (bank name, amount, 12-digit UTR, suspect accounts, handles, contact numbers, channel, platform) into structured form boxes to auto-fill the complaint report for the victim.
 
 CATEGORIES:
 ${categoryList}
 
 Rules:
 1. Reply ONLY with valid JSON matching the schema. No prose, no markdown.
-2. If the narrative matches "digital_arrest" signals (CBI, ED, police calling about arrest, digital arrest), always use that category.
-3. Extract a loss amount in INR if mentioned; set to null if absent.
-4. Write "reasoning" as one plain-English sentence a non-expert citizen can understand.
-5. Set "moneyMoved" to true only if the victim explicitly says money was taken/sent/deducted.
+2. If the narrative matches "digital_arrest" signals (CBI, ED, police calling about arrest, digital arrest, parcel contraband), always use "digital_arrest" and set "isDigitalArrest": true.
+3. Extract loss amount in INR if mentioned; set to null if absent.
+4. Extract 12-digit UTR, bank name (e.g. SBI, HDFC), suspect UPI/account (e.g. fraud@ybl), suspect mobile, suspect handle (@...), channel (WhatsApp, Telegram, Phone Call, SMS, APK, etc.).
+5. Write "reasoning" as one plain-English sentence.
+6. Set "moneyMoved" to true only if the victim explicitly says money was taken/sent/deducted/lost.
 
 Schema:
 {
@@ -91,16 +94,32 @@ Schema:
   "detectedAmount": number | null,
   "moneyMoved": boolean,
   "reasoning": string,
-  "isDigitalArrest": boolean
+  "isDigitalArrest": boolean,
+  "extractedFields": {
+    "bankName": string | null,
+    "bankAccount": string | null,
+    "suspectAccount": string | null,
+    "suspectName": string | null,
+    "suspectPhone": string | null,
+    "suspectHandle": string | null,
+    "suspectWebsite": string | null,
+    "amount": number | null,
+    "utrNumber": string | null,
+    "paymentMode": "UPI" | "Net Banking" | "Credit/Debit Card" | "AEPS" | "Wallet" | "Other" | null,
+    "channel": "WhatsApp" | "Telegram" | "Phone Call" | "SMS" | "Instagram" | "Fake Website" | "Malicious APK" | "Email" | "Other" | null,
+    "incidentDate": string | null,
+    "delayReason": string | null
+  },
+  "extractedPills": string[]
 }`;
 
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     temperature: 0,
-    max_tokens: 350,
+    max_tokens: 450,
     messages: [
       { role: "system", content: systemPrompt },
-      { role: "user", content: `Classify this narrative:\n\n${narrative}` },
+      { role: "user", content: `Classify and extract fields from this narrative:\n\n${narrative}` },
     ],
     response_format: { type: "json_object" },
   });
@@ -112,16 +131,24 @@ Schema:
   const known = CATEGORIES.find((c) => c.id === parsed.categoryId);
   if (!known) return null;
 
+  const detAmount = parsed.detectedAmount ?? (parsed.extractedFields?.amount ? Number(parsed.extractedFields.amount) : undefined);
+
+  // Clean and merge extracted fields
+  const fields = { ...(parsed.extractedFields || {}) };
+  if (detAmount && !fields.amount) fields.amount = detAmount;
+
   return {
     categoryId: parsed.categoryId,
     categoryLabel: parsed.categoryLabel ?? known.label,
     parentCategory: parsed.parentCategory ?? known.parent,
     isFinancialFraud: parsed.isFinancialFraud ?? known.isFinancial,
     urgency: parsed.urgency ?? known.defaultUrgency,
-    detectedAmount: parsed.detectedAmount ?? undefined,
+    detectedAmount: detAmount,
     moneyMoved: parsed.moneyMoved ?? false,
     reasoning: parsed.reasoning ?? "AI-classified.",
     isDigitalArrest: parsed.isDigitalArrest ?? parsed.categoryId === "digital_arrest",
     source: "ai",
+    extractedFields: fields,
+    extractedPills: parsed.extractedPills && parsed.extractedPills.length > 0 ? parsed.extractedPills : undefined,
   };
 }
