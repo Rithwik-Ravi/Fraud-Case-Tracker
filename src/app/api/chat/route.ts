@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOpenAiApiKey } from "@/lib/ai-config";
+import { parseFinancialAmount } from "@/lib/triage";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -9,7 +10,22 @@ export interface ChatMessage {
   content: string;
 }
 
-const SYSTEM_PROMPT = `You are CasePilot AI, an expert, calm, citizen-first cyber incident and legal guidance assistant for India.
+export interface ChatReportDraft {
+  narrative?: string;
+  categoryId?: string;
+  categoryLabel?: string;
+  amount?: number | null;
+  bankName?: string | null;
+  utrNumber?: string | null;
+  suspectAccount?: string | null;
+  suspectPhone?: string | null;
+  suspectHandle?: string | null;
+  suspectWebsite?: string | null;
+  channel?: string | null;
+  isReadyToReport?: boolean;
+}
+
+const ADVISORY_SYSTEM_PROMPT = `You are CasePilot AI, an expert, calm, citizen-first cyber incident and legal guidance assistant for India.
 You provide immediate, actionable emergency assistance to citizens facing cyber crimes under Indian laws.
 
 Key Rules & Guidelines:
@@ -21,9 +37,8 @@ Key Rules & Guidelines:
    - Consumer / E-commerce disputes (defective items, refund delays, seller disputes): Direct to National Consumer Helpline (Call 1915 or visit consumerhelpline.gov.in) instead of cyber police.
    - Physically lost or stolen mobile phones: Direct to CEIR (Sanchar Saathi at ceir.gov.in) to block the device IMEI and trace it.
    - Unauthorized SIM cards in their name: Direct to DoT TAFCOP (tafcop.sancharsaathi.gov.in).
-4. COMPLAINT FILING WORKFLOW (AI AUTO-FILL):
-   - When a citizen is ready to report a cybercrime, guide them to /report.
-   - Explain that they do NOT need to fill a tedious 40-box form: they simply describe what happened in their own words or voice in Step 1, and our AI engine automatically fills in all the statutory boxes (bank, amount, UTR, suspect handles, police jurisdiction).
+4. COMPLAINT FILING WORKFLOW:
+   - When a citizen is ready to report, inform them that they can switch to 'Report Incident' mode in this chat or visit /report.
 5. GOLDEN HOUR INTERVENTION: If money was transferred or debited within the last 1-2 hours:
    - Tell them the first 120 minutes are the critical "Golden Hour".
    - Advise them to immediately call 1930 and file a banking freeze request on CasePilot (/report?urgency=golden-hour).
@@ -31,10 +46,43 @@ Key Rules & Guidelines:
 7. EVIDENCE INTEGRITY: Remind them to keep screenshots, chat logs, call records, and transaction receipts without altering them (BSA Section 63 compliant).
 8. Keep responses concise, formatted with clear bullet points, and easy to read on mobile.`;
 
+const REPORTING_SYSTEM_PROMPT = `You are CasePilot's Cyber Incident Intake Officer for Indian citizens.
+Your objective is to conversationally interview the victim, gather their incident facts with empathy, and construct an official complaint draft so they don't have to fill complex forms alone.
+
+Your Behavior:
+1. Speak with calm empathy and reassuring clarity.
+2. Incrementally gather:
+   - What happened (narrative overview)
+   - Total financial loss in INR (if money was taken)
+   - Complainant's bank or payment app (SBI, HDFC, GPay, PhonePe, etc.)
+   - 12-digit UTR reference or transaction ID from SMS/bank receipt
+   - Suspect details (phone number +91..., UPI handle @..., profile link, phishing URL)
+   - Channel/Platform (WhatsApp, Telegram, Phone Call, SMS, Instagram, APK, etc.)
+3. Digital Arrest Scams: If they mention a video call or police/CBI threatening arrest, emphasize that Digital Arrest is fake and they should hang up immediately.
+4. Output format: You MUST reply ONLY with a valid JSON object matching this schema (no surrounding prose or markdown):
+{
+  "reply": "Your conversational message to the victim. Acknowledge what they provided, show empathy, and ask for 1 or 2 missing details, OR if enough details are present, reassure them that the draft is ready to transfer to the official report.",
+  "draft": {
+    "narrative": "A cohesive 2-4 sentence summary of the incident based on everything the victim shared.",
+    "categoryId": "upi_fraud" | "net_banking" | "card_fraud" | "investment_scam" | "job_scam" | "loan_app_scam" | "digital_arrest" | "sextortion" | "impersonation" | "other_cybercrime",
+    "categoryLabel": "UPI Related Fraud" (or matching official label),
+    "amount": number | null,
+    "bankName": string | null,
+    "utrNumber": string | null,
+    "suspectAccount": string | null,
+    "suspectPhone": string | null,
+    "suspectHandle": string | null,
+    "suspectWebsite": string | null,
+    "channel": "WhatsApp" | "Telegram" | "Phone Call" | "SMS" | "Instagram" | "Fake Website" | "Malicious APK" | "Email" | "Other" | null,
+    "isReadyToReport": boolean
+  }
+}`;
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
     const messages: ChatMessage[] = Array.isArray(body.messages) ? body.messages : [];
+    const mode = (body.mode === "reporting" ? "reporting" : "advisory") as "advisory" | "reporting";
 
     if (messages.length === 0) {
       return NextResponse.json({ error: "No messages provided." }, { status: 400 });
@@ -47,46 +95,90 @@ export async function POST(req: NextRequest) {
 
     const apiKey = getOpenAiApiKey();
 
-    // If OPENAI_API_KEY is configured, use OpenAI gpt-4o-mini
+    // ── If OPENAI_API_KEY is configured, call gpt-4o-mini ────────────────────
     if (apiKey) {
       try {
         const { default: OpenAI } = await import("openai");
         const openai = new OpenAI({ apiKey: apiKey.trim(), timeout: 25000 });
 
-        const formattedMessages = [
-          { role: "system" as const, content: SYSTEM_PROMPT },
-          ...messages.slice(-10).map((m) => ({
-            role: (m.role === "user" ? "user" : "assistant") as "user" | "assistant",
-            content: String(m.content).slice(0, 2000),
-          })),
-        ];
-
-        const response = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: formattedMessages,
-          temperature: 0.3,
-          max_tokens: 800,
-        });
-
-        const reply = response.choices[0]?.message?.content?.trim();
-        if (reply) {
-          return NextResponse.json({
-            reply,
-            source: "openai",
+        if (mode === "reporting") {
+          const response = await openai.chat.completions.create({
             model: "gpt-4o-mini",
+            temperature: 0.2,
+            max_tokens: 700,
+            response_format: { type: "json_object" },
+            messages: [
+              { role: "system", content: REPORTING_SYSTEM_PROMPT },
+              ...messages.slice(-8).map((m) => ({
+                role: (m.role === "user" ? "user" : "assistant") as "user" | "assistant",
+                content: String(m.content).slice(0, 2000),
+              })),
+            ],
           });
+
+          const raw = response.choices[0]?.message?.content?.trim() || "{}";
+          try {
+            const parsed = JSON.parse(raw);
+            return NextResponse.json({
+              reply: parsed.reply || "I have recorded your details. You can transfer them to your complaint form at any time.",
+              draft: parsed.draft || null,
+              source: "openai",
+              model: "gpt-4o-mini",
+              mode: "reporting",
+            });
+          } catch {
+            // Fall through to deterministic if JSON parsing failed
+          }
+        } else {
+          // Advisory mode
+          const formattedMessages = [
+            { role: "system" as const, content: ADVISORY_SYSTEM_PROMPT },
+            ...messages.slice(-10).map((m) => ({
+              role: (m.role === "user" ? "user" : "assistant") as "user" | "assistant",
+              content: String(m.content).slice(0, 2000),
+            })),
+          ];
+
+          const response = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            messages: formattedMessages,
+            temperature: 0.3,
+            max_tokens: 800,
+          });
+
+          const reply = response.choices[0]?.message?.content?.trim();
+          if (reply) {
+            return NextResponse.json({
+              reply,
+              source: "openai",
+              model: "gpt-4o-mini",
+              mode: "advisory",
+            });
+          }
         }
       } catch (openAiError) {
         console.warn("[/api/chat] OpenAI call failed, falling back to deterministic:", (openAiError as Error).message);
       }
     }
 
-    // Deterministic Rule-Based Fallback Engine
-    const fallbackReply = generateFallbackResponse(lastMessage.content);
+    // ── Deterministic Rule-Based Fallback Engine ─────────────────────────────
+    if (mode === "reporting") {
+      const fallbackReporting = generateReportingFallback(messages);
+      return NextResponse.json({
+        ...fallbackReporting,
+        source: "deterministic",
+        model: "casepilot-offline-engine",
+        mode: "reporting",
+        hasApiKey: Boolean(apiKey && apiKey.trim().length > 0),
+      });
+    }
+
+    const fallbackReply = generateAdvisoryFallback(lastMessage.content);
     return NextResponse.json({
       reply: fallbackReply,
       source: "deterministic",
       model: "casepilot-offline-engine",
+      mode: "advisory",
       hasApiKey: Boolean(apiKey && apiKey.trim().length > 0),
     });
   } catch (err) {
@@ -99,9 +191,108 @@ export async function POST(req: NextRequest) {
 }
 
 /**
- * High-accuracy deterministic fallback engine for when OPENAI_API_KEY is not set or network fails.
+ * Deterministic intake fallback for reporting mode.
+ * Aggregates all user messages to extract financial and suspect entities.
  */
-function generateFallbackResponse(text: string): string {
+function generateReportingFallback(messages: ChatMessage[]): { reply: string; draft: ChatReportDraft } {
+  const userTexts = messages.filter((m) => m.role === "user").map((m) => m.content).join(" ");
+  const fullText = userTexts.toLowerCase();
+
+  // Extract amount
+  const amount = parseFinancialAmount(userTexts) ?? null;
+
+  // Extract UTR (12 digits)
+  const utrMatch = userTexts.match(/\b\d{12}\b/);
+  const utrNumber = utrMatch ? utrMatch[0] : null;
+
+  // Extract suspect UPI handle (e.g. fraud@ybl)
+  const upiMatch = userTexts.match(/([a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64})/);
+  const suspectAccount = upiMatch ? upiMatch[1] : null;
+
+  // Extract suspect phone (10 digits starting with 6-9)
+  const phoneMatch = userTexts.match(/(?:\+91[\-\s]?)?([6-9]\d{9})\b/);
+  const suspectPhone = phoneMatch ? phoneMatch[1] : null;
+
+  // Extract suspect handle (e.g. @handle)
+  const handleMatch = userTexts.match(/@([a-zA-Z0-9_\.]{3,30})/);
+  const suspectHandle = handleMatch ? `@${handleMatch[1]}` : null;
+
+  // Channel detection
+  let channel: string | null = null;
+  if (fullText.includes("whatsapp")) channel = "WhatsApp";
+  else if (fullText.includes("telegram")) channel = "Telegram";
+  else if (fullText.includes("instagram")) channel = "Instagram";
+  else if (fullText.includes("call") || fullText.includes("phone")) channel = "Phone Call";
+  else if (fullText.includes("sms")) channel = "SMS";
+
+  // Category detection
+  let categoryId = "other_cybercrime";
+  let categoryLabel = "Other Cyber Crime";
+
+  if (fullText.includes("cbi") || fullText.includes("digital arrest") || fullText.includes("police uniform")) {
+    categoryId = "digital_arrest";
+    categoryLabel = "Digital Arrest Scam";
+  } else if (fullText.includes("upi") || fullText.includes("gpay") || fullText.includes("phonepe") || suspectAccount) {
+    categoryId = "upi_fraud";
+    categoryLabel = "UPI Related Fraud";
+  } else if (fullText.includes("card") || fullText.includes("otp") || fullText.includes("cvv")) {
+    categoryId = "card_fraud";
+    categoryLabel = "Credit / Debit Card Fraud";
+  } else if (fullText.includes("task") || fullText.includes("telegram group") || fullText.includes("part time")) {
+    categoryId = "job_scam";
+    categoryLabel = "Work from Home / Job Scam";
+  }
+
+  const isReadyToReport = Boolean(amount || utrNumber || suspectAccount || suspectPhone || userTexts.length > 50);
+
+  // Generate guided assistant reply
+  let reply = "Thank you for sharing this. I have started drafting your official incident report.\n\n";
+
+  const missing: string[] = [];
+  if (!amount && (categoryId === "upi_fraud" || categoryId === "card_fraud")) {
+    missing.push("How much money was debited or transferred (in ₹)?");
+  }
+  if (!utrNumber && amount) {
+    missing.push("Do you have the 12-digit UTR reference number from your bank SMS?");
+  }
+  if (!suspectAccount && !suspectPhone && !suspectHandle) {
+    missing.push("Do you have the scammer's phone number, UPI ID, or username?");
+  }
+
+  if (missing.length > 0) {
+    reply += "To make your complaint as strong as possible for law enforcement, could you tell me:\n" +
+      missing.map((m) => `• ${m}`).join("\n") +
+      "\n\nYou can also click 'Transfer to Official Report Form' at any time to review and submit.";
+  } else {
+    reply += "I've captured the key facts of your incident:\n" +
+      (amount ? `• Reported Loss: ₹${amount.toLocaleString("en-IN")}\n` : "") +
+      (utrNumber ? `• Transaction UTR: ${utrNumber}\n` : "") +
+      (suspectAccount ? `• Suspect UPI: ${suspectAccount}\n` : "") +
+      (suspectPhone ? `• Suspect Mobile: ${suspectPhone}\n` : "") +
+      "\nYou're ready to proceed! Click 'Transfer to Official Report Form' below to verify your details and generate your official stamped complaint.";
+  }
+
+  return {
+    reply,
+    draft: {
+      narrative: userTexts.slice(0, 500),
+      categoryId,
+      categoryLabel,
+      amount,
+      utrNumber,
+      suspectAccount,
+      suspectPhone,
+      suspectHandle,
+      channel,
+      isReadyToReport,
+    },
+  };
+}
+
+/**
+ * High-accuracy deterministic fallback engine for Advisory mode.
+ */
+function generateAdvisoryFallback(text: string): string {
   const lower = text.toLowerCase();
 
   // 1. Digital arrest signals
@@ -142,7 +333,7 @@ function generateFallbackResponse(text: string): string {
       `How to resolve:\n` +
       `1. National Consumer Helpline (NCH): Dial toll-free 1915 or register online at consumerhelpline.gov.in.\n` +
       `2. E-Daakhil Portal: If unaddressed by the seller, file a consumer case at edaakhil.nic.in.\n` +
-      `3. Note: If the seller took money via an unauthorized phishing payment link or fake customer care number, file a formal cyber report on CasePilot (/report).`;
+      `3. Note: If the seller took money via an unauthorized phishing payment link or fake customer care number, switch to 'Report Incident' mode or visit /report.`;
   }
 
   // 3. Lost / Stolen Handset Deflection
@@ -170,9 +361,9 @@ function generateFallbackResponse(text: string): string {
   ) {
     return `HOW TO FILE A COMPLAINT ON CASEPILOT:\n\n` +
       `You do NOT need to fill out a confusing 40-question government form. Our system is built with AI-assisted intake:\n\n` +
-      `1. Visit the Report Incident page (/report).\n` +
-      `2. Speak or type your story in Step 1 in your own words (English, Hindi, or Hinglish).\n` +
-      `3. Our AI Engine analyzes your statement and automatically populates all required boxes:\n` +
+      `1. Click the 'Report Incident' tab right here in this chat, or visit /report.\n` +
+      `2. Chat with me or describe what happened in your own words (English, Hindi, or Hinglish).\n` +
+      `3. Our AI Engine extracts the required entities:\n` +
       `   • Official NCRP Category & Urgency\n` +
       `   • Bank name, amount, and 12-digit UTR\n` +
       `   • Suspect phone, handles, and URLs\n` +
@@ -199,7 +390,7 @@ function generateFallbackResponse(text: string): string {
       `Immediate Steps:\n` +
       `1. Note your 12-digit UTR/Transaction Reference number from the SMS.\n` +
       `2. Call 1930 (National Cybercrime Reporting Helpline) immediately to initiate a CFCFRMS payment switch freeze.\n` +
-      `3. Use CasePilot's Rapid Bank Freeze (/report?urgency=golden-hour) to record transaction and nodal evidence.\n` +
+      `3. Switch to 'Report Incident' mode here or use CasePilot's Rapid Bank Freeze (/report?urgency=golden-hour) to record transaction and nodal evidence.\n` +
       `4. Call your bank's emergency debit-card / UPI hotlisting helpline to prevent further debits.`;
   }
 
@@ -218,7 +409,7 @@ function generateFallbackResponse(text: string): string {
       `2. Preserve all evidence: Take screenshots of chats, profile links, phone numbers, and payment handles. Do not delete the conversation.\n` +
       `3. Block the extortionist on all communication channels.\n` +
       `4. Under Section 67/67A of the IT Act, publishing or blackmailing with private media is a cognizable criminal offense.\n` +
-      `5. File a formal complaint immediately on CasePilot (/report) or call 1930.`;
+      `5. Switch to 'Report Incident' mode here or file a formal complaint on CasePilot (/report).`;
   }
 
   // 7. Case tracking / SLA
@@ -240,10 +431,8 @@ function generateFallbackResponse(text: string): string {
 
   // Default response
   return `Welcome to CasePilot Citizen Cyber Support.\n\n` +
-    `I can assist you with:\n` +
-    `- What to do if you suspect a scam or "Digital Arrest" call\n` +
-    `- Emergency Golden-Hour banking freeze procedures (1930 / CFCFRMS)\n` +
-    `- Verifying suspicious UPI IDs, bank accounts, or APK links\n` +
-    `- Tracking case milestones under Indian cyber law and BNSS\n\n` +
-    `Please describe what happened, or call 1930 directly for immediate emergency assistance.`;
+    `I can assist you in two ways:\n` +
+    `1. Ask & Guidance: Questions about scams, digital arrest, or emergency freezes\n` +
+    `2. Report Incident: Guided step-by-step interview to build your official complaint\n\n` +
+    `Switch tabs above, or describe your situation and I will guide you!`;
 }

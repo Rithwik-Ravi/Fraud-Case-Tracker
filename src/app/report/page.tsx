@@ -136,6 +136,51 @@ export default function ReportPage() {
   const [ackNumber, setAckNumber] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
   const [copiedAck, setCopiedAck] = useState(false);
+  const [draftBannerMessage, setDraftBannerMessage] = useState<string>("");
+
+  // Check for pre-filled draft imported from AI Chatbot
+  useEffect(() => {
+    try {
+      const savedDraft = sessionStorage.getItem("casepilot_chatbot_draft");
+      if (savedDraft) {
+        const draft = JSON.parse(savedDraft);
+        sessionStorage.removeItem("casepilot_chatbot_draft");
+
+        if (draft.narrative) setNarrative(draft.narrative);
+        if (draft.amount) setAmount(draft.amount.toString());
+        if (draft.bankName) setBankName(draft.bankName);
+        if (draft.utrNumber) setTransactionId(draft.utrNumber);
+        if (draft.suspectAccount) setSuspectAccount(draft.suspectAccount);
+        if (draft.suspectPhone) setSuspectPhone(draft.suspectPhone);
+        if (draft.suspectHandle) setSuspectHandle(draft.suspectHandle);
+        if (draft.suspectWebsite) setSuspectWebsite(draft.suspectWebsite);
+        if (draft.channel) setPlatformChannel(draft.channel);
+
+        if (draft.categoryId) {
+          const found = CATEGORIES.find((c) => c.id === draft.categoryId);
+          if (found) setSelectedCategory(found);
+        }
+
+        const pills: string[] = [];
+        if (draft.categoryLabel) pills.push(`Category: ${draft.categoryLabel}`);
+        if (draft.amount) pills.push(`Loss: ₹${Number(draft.amount).toLocaleString("en-IN")}`);
+        if (draft.bankName) pills.push(`Bank: ${draft.bankName}`);
+        if (draft.utrNumber) pills.push(`UTR: ${draft.utrNumber}`);
+        if (draft.suspectAccount) pills.push(`UPI: ${draft.suspectAccount}`);
+        if (pills.length > 0) setExtractedPills(pills);
+
+        setDraftBannerMessage("✨ Case facts imported from your AI Chat session. You can review or edit any field below.");
+
+        if (draft.amount && Number(draft.amount) > 0) {
+          setCurrentStep("FREEZE");
+        } else {
+          setCurrentStep("DETAILS");
+        }
+      }
+    } catch (e) {
+      console.warn("Could not load chatbot draft:", e);
+    }
+  }, []);
 
   // Sync assisted mode default & pre-fill phone from account
   useEffect(() => {
@@ -787,6 +832,25 @@ export default function ReportPage() {
         </li>
       </ol>
 
+      {/* AI Chatbot Imported Draft Alert Banner */}
+      {draftBannerMessage && (
+        <div className="mb-6 rounded-ux-lg border-2 border-brand-400 bg-brand-50 p-4 shadow-sm flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <Sparkles className="h-5 w-5 text-brand-600 shrink-0" />
+            <p className="text-sm font-bold text-brand-900">
+              {draftBannerMessage}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setDraftBannerMessage("")}
+            className="text-xs font-semibold text-brand-700 hover:text-brand-900 underline shrink-0"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       {/* Assisted Mode Toggle Banner */}
       <div className="mb-6 rounded-ux-lg border border-brand-200 bg-brand-50/50 p-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1265,6 +1329,24 @@ export default function ReportPage() {
                   className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm focus:border-brand-500 focus:outline-none"
                 />
               </div>
+            </div>
+
+            {/* Clean Manual Modus Operandi Narrative Box (Zero AI calls) */}
+            <div className="pt-4 border-t border-ink-200 space-y-2">
+              <label htmlFor="modus-narrative" className="block text-sm font-bold text-ink-900">
+                Detailed Modus Operandi / Incident Summary (Manual Review)
+              </label>
+              <p className="text-xs text-ink-500">
+                Review or edit the incident narrative below. This description will be directly recorded in your official BNSS 173(3) complaint. Zero automated AI calls will modify this box.
+              </p>
+              <textarea
+                id="modus-narrative"
+                rows={4}
+                value={narrative}
+                onChange={(e) => setNarrative(e.target.value)}
+                placeholder="Describe the incident sequence, how the suspect approached you, instructions given, and any other relevant facts..."
+                className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2.5 text-sm leading-relaxed text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:outline-none"
+              />
             </div>
 
             <div className="mt-6 flex justify-between items-center pt-4 border-t border-ink-200">
