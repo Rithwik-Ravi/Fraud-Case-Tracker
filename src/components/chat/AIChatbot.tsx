@@ -103,8 +103,25 @@ export default function AIChatbot() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { speak, assist } = useAssist();
 
-  // ── Voice Assistance (Text to Voice) ───────────────────────────────────────
+  // ── Voice Assistance (Grace from ElevenLabs) ───────────────────────────────
   const [voiceAssistance, setVoiceAssistance] = useState(false);
+  const voiceAssistanceRef = useRef(voiceAssistance);
+
+  // Sync ref and initialize from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("casepilot_voice_guidance");
+      if (stored === "true") {
+        setVoiceAssistance(true);
+        voiceAssistanceRef.current = true;
+      }
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    voiceAssistanceRef.current = voiceAssistance;
+  }, [voiceAssistance]);
+
   const [playingMsgId, setPlayingMsgId] = useState<string | null>(null);
 
   // ── Speech Recognition (Voice to Text) ─────────────────────────────────────
@@ -182,9 +199,26 @@ export default function AIChatbot() {
   const toggleVoiceAssistance = () => {
     setVoiceAssistance((prev) => {
       const next = !prev;
+      voiceAssistanceRef.current = next;
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("casepilot_voice_guidance", next ? "true" : "false");
+        } catch {}
+      }
       if (!next) {
         SpeechController.stop();
         setPlayingMsgId(null);
+      } else {
+        // When turned ON, immediately speak the latest assistant message
+        const messages = chatMode === "advisory" ? advisoryMessages : reportingMessages;
+        const latestBot = [...messages].reverse().find((m) => m.role === "assistant");
+        if (latestBot) {
+          SpeechController.speak(latestBot.content, {
+            id: latestBot.id,
+            onStart: () => setPlayingMsgId(latestBot.id),
+            onEnd: () => setPlayingMsgId((curr) => (curr === latestBot.id ? null : curr)),
+          });
+        }
       }
       return next;
     });
@@ -198,7 +232,7 @@ export default function AIChatbot() {
       SpeechController.speak(text, {
         id,
         onStart: () => setPlayingMsgId(id),
-        onEnd: () => setPlayingMsgId(null),
+        onEnd: () => setPlayingMsgId((curr) => (curr === id ? null : curr)),
       });
     }
   };
@@ -264,6 +298,15 @@ export default function AIChatbot() {
         source: data.source,
       };
 
+      // IMMEDIATELY start speaking the moment AI sends text if overall speaker is on
+      if ((voiceAssistanceRef.current || assist) && data.reply) {
+        SpeechController.speak(data.reply, {
+          id: botMessage.id,
+          onStart: () => setPlayingMsgId(botMessage.id),
+          onEnd: () => setPlayingMsgId((curr) => (curr === botMessage.id ? null : curr)),
+        });
+      }
+
       if (data.source === "openai") {
         setEngineStatus("openai");
       } else {
@@ -297,10 +340,6 @@ export default function AIChatbot() {
 
         setReportingMessages((prev) => [...prev, botMessage]);
       }
-
-      if (assist && data.reply) {
-        speak(data.reply);
-      }
     } catch (err) {
       const errorMessage: Message = {
         id: `err-${Date.now()}`,
@@ -309,6 +348,14 @@ export default function AIChatbot() {
           "We encountered a temporary connection issue. If this is an active financial emergency, please call 1930 immediately.",
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
+
+      if ((voiceAssistanceRef.current || assist) && errorMessage.content) {
+        SpeechController.speak(errorMessage.content, {
+          id: errorMessage.id,
+          onStart: () => setPlayingMsgId(errorMessage.id),
+          onEnd: () => setPlayingMsgId((curr) => (curr === errorMessage.id ? null : curr)),
+        });
+      }
 
       if (chatMode === "advisory") {
         setAdvisoryMessages((prev) => [...prev, errorMessage]);
@@ -415,17 +462,27 @@ export default function AIChatbot() {
                 onClick={toggleVoiceAssistance}
                 title={
                   voiceAssistance
-                    ? "Voice Guidance Active (click to mute)"
-                    : "Voice Guidance Muted (click to listen to replies)"
+                    ? "Grace AI Voice Guidance Active (click to mute)"
+                    : "Grace AI Voice Guidance Muted (click to listen to replies automatically)"
                 }
-                className={`p-1.5 rounded-ux transition ${
+                className={`p-1.5 rounded-ux transition flex items-center gap-1.5 ${
                   voiceAssistance
                     ? "text-emerald-400 bg-ink-800/90 hover:bg-ink-700 ring-1 ring-emerald-500/50"
                     : "text-ink-400 hover:text-white hover:bg-ink-800"
                 }`}
-                aria-label={voiceAssistance ? "Mute voice guidance" : "Enable voice guidance"}
+                aria-label={voiceAssistance ? "Mute Grace AI voice guidance" : "Enable Grace AI voice guidance"}
               >
-                {voiceAssistance ? <Volume2 className="h-4 w-4 text-emerald-400" /> : <VolumeX className="h-4 w-4" />}
+                {voiceAssistance ? (
+                  <>
+                    <Volume2 className="h-4 w-4 text-emerald-400 animate-pulse" />
+                    <span className="text-[10px] font-bold text-emerald-400 hidden sm:inline">Grace ON</span>
+                  </>
+                ) : (
+                  <>
+                    <VolumeX className="h-4 w-4" />
+                    <span className="text-[10px] font-medium text-ink-400 hidden sm:inline">Voice</span>
+                  </>
+                )}
               </button>
               <button
                 type="button"
@@ -545,22 +602,22 @@ export default function AIChatbot() {
                         <button
                           type="button"
                           onClick={() => toggleSpeakMessage(msg.id, msg.content)}
-                          className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded transition ${
+                          className={`inline-flex items-center gap-1.5 text-[10px] font-semibold px-2 py-0.5 rounded transition ${
                             playingMsgId === msg.id
                               ? "bg-brand-50 text-brand-700 border border-brand-200 shadow-2xs"
                               : "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100"
                           }`}
-                          title={playingMsgId === msg.id ? "Stop voice" : "Listen in calm AI voice"}
+                          title={playingMsgId === msg.id ? "Stop Grace voice" : "Listen in Grace AI voice"}
                         >
                           {playingMsgId === msg.id ? (
                             <>
                               <Square className="h-2.5 w-2.5 text-brand-600 fill-brand-600 animate-pulse" />
-                              <span>Stop</span>
+                              <span>Stop Grace</span>
                             </>
                           ) : (
                             <>
                               <Volume2 className="h-2.5 w-2.5 text-zinc-500" />
-                              <span>Listen</span>
+                              <span>Listen (Grace)</span>
                             </>
                           )}
                         </button>
