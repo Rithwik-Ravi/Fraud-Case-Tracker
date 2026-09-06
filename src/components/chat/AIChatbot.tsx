@@ -36,12 +36,16 @@ export interface ChatReportDraft {
   categoryLabel?: string;
   amount?: number | null;
   bankName?: string | null;
+  bankAccount?: string | null;
+  paymentMode?: string | null;
   utrNumber?: string | null;
   suspectAccount?: string | null;
+  suspectName?: string | null;
   suspectPhone?: string | null;
   suspectHandle?: string | null;
   suspectWebsite?: string | null;
   channel?: string | null;
+  incidentDate?: string | null;
   isReadyToReport?: boolean;
 }
 
@@ -482,9 +486,9 @@ export default function AIChatbot() {
 }
 
 /**
- * Clean, high-impact statutory checklist table rendered directly inside
+ * Clean, minimal ChatGPT-style statutory checklist table rendered directly inside
  * the assistant message bubble in Reporting mode.
- * Shows vivid green ticks (✅) next to filled lines and pending hints next to missing lines.
+ * Shows all 11 required fields with minimal green checkmarks.
  */
 function IntakeChecklistTable({
   draft,
@@ -498,121 +502,122 @@ function IntakeChecklistTable({
       id: "cat",
       name: "Crime Classification",
       value: draft.categoryLabel || null,
-      missingNote: "AI will categorize from narrative",
     },
     {
       id: "amt",
-      name: "Reported Loss Amount",
+      name: "Reported Loss",
       value: draft.amount ? `₹${Number(draft.amount).toLocaleString("en-IN")}` : null,
-      missingNote: "Total ₹ loss (if money moved)",
     },
     {
       id: "bank",
-      name: "Complainant Bank / App",
+      name: "Your Bank / App",
       value: draft.bankName || null,
-      missingNote: "e.g. SBI, HDFC, GPay, PhonePe",
+    },
+    {
+      id: "debit",
+      name: "Your Account / Mobile",
+      value: draft.bankAccount || null,
+    },
+    {
+      id: "mode",
+      name: "Payment Mode",
+      value: draft.paymentMode || null,
     },
     {
       id: "utr",
       name: "12-Digit Transaction UTR",
       value: draft.utrNumber || null,
-      missingNote: "From bank SMS / debit receipt",
     },
     {
       id: "acc",
       name: "Suspect Account / UPI",
       value: draft.suspectAccount || null,
-      missingNote: "Fraudster UPI ID or beneficiary A/C",
     },
     {
       id: "phone",
-      name: "Suspect Mobile / Contact",
+      name: "Suspect Phone / Contact",
       value: draft.suspectPhone || null,
-      missingNote: "Caller / WhatsApp mobile number",
+    },
+    {
+      id: "name",
+      name: "Suspect Name / Alias",
+      value: draft.suspectName || null,
     },
     {
       id: "ch",
       name: "Platform / Channel",
       value: draft.channel || null,
-      missingNote: "WhatsApp, Telegram, Phone call, etc.",
+    },
+    {
+      id: "date",
+      name: "Incident Date / Time",
+      value: draft.incidentDate || null,
     },
   ];
 
-  const filledItems = checklistItems.filter((i) => Boolean(i.value));
-  const countFilled = filledItems.length;
+  const countFilled = checklistItems.filter((i) => Boolean(i.value)).length;
   const countTotal = checklistItems.length;
   const progressPercent = Math.round((countFilled / countTotal) * 100);
 
   return (
-    <div className="mt-3.5 rounded-ux border-2 border-ink-900 bg-white text-ink-900 overflow-hidden shadow-sm not-prose">
-      {/* Table Header Bar */}
-      <div className="flex items-center justify-between border-b border-ink-200 bg-ink-900 px-3 py-2 text-white">
+    <div className="mt-3 rounded-xl border border-zinc-200/90 bg-white overflow-hidden shadow-2xs font-sans not-prose">
+      {/* Sleek Minimal Header (ChatGPT Style) */}
+      <div className="px-3.5 py-2.5 bg-zinc-50/80 border-b border-zinc-200/70 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="grid h-4 w-4 place-items-center rounded-full bg-emerald-500 text-ink-900 font-black text-[10px]">
-            ✓
-          </div>
-          <span className="font-extrabold text-[11px] tracking-wide uppercase">
-            Statutory Field Intake Progress
+          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-[11px] font-bold text-zinc-900 tracking-tight">
+            Case Intake Checklist
           </span>
         </div>
-        <span className="rounded-ux bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-mono font-bold">
-          {countFilled}/{countTotal} Captured ({progressPercent}%)
+        <span className="text-[10px] font-mono font-medium text-zinc-500">
+          {countFilled} of {countTotal} captured ({progressPercent}%)
         </span>
       </div>
 
-      {/* Checklist Table */}
-      <div className="divide-y divide-ink-100 text-[11px]">
+      {/* Thin Micro Progress Bar */}
+      <div className="h-0.5 w-full bg-zinc-100">
+        <div
+          className="h-full bg-emerald-500 transition-all duration-300"
+          style={{ width: `${progressPercent}%` }}
+        />
+      </div>
+
+      {/* Minimalist Rows */}
+      <div className="divide-y divide-zinc-100 text-xs">
         {checklistItems.map((item) => {
           const isFilled = Boolean(item.value);
           return (
             <div
               key={item.id}
-              className={`flex items-center justify-between px-3 py-2 transition ${
-                isFilled ? "bg-emerald-50/50" : "bg-white"
+              className={`flex items-center justify-between px-3.5 py-1.5 transition-colors ${
+                isFilled ? "bg-emerald-50/20" : "bg-white"
               }`}
             >
-              <div className="flex items-start gap-2.5 min-w-0 pr-2">
+              <div className="flex items-center gap-2 min-w-0 pr-3">
                 {isFilled ? (
-                  <span
-                    className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-emerald-600 text-white mt-0.5 shadow-2xs"
-                    title="Filled"
-                  >
-                    <Check className="h-2.5 w-2.5 stroke-[3]" />
-                  </span>
+                  <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0 stroke-[2.5]" />
                 ) : (
-                  <span
-                    className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-amber-100 text-amber-600 mt-0.5"
-                    title="Required / Pending"
-                  >
-                    <Clock className="h-2.5 w-2.5" />
+                  <span className="h-3.5 w-3.5 flex items-center justify-center text-zinc-300 shrink-0 text-xs select-none">
+                    ·
                   </span>
                 )}
-                <div className="min-w-0">
-                  <span className={`block font-bold ${isFilled ? "text-ink-900" : "text-ink-700"}`}>
-                    {item.name}
-                  </span>
-                  {isFilled ? (
-                    <span className="block truncate font-mono text-[10px] font-semibold text-emerald-800">
-                      {item.value}
-                    </span>
-                  ) : (
-                    <span className="block truncate text-[10px] text-ink-400">
-                      {item.missingNote}
-                    </span>
-                  )}
-                </div>
+                <span
+                  className={`text-[11px] truncate ${
+                    isFilled ? "text-zinc-700 font-medium" : "text-zinc-400"
+                  }`}
+                >
+                  {item.name}
+                </span>
               </div>
 
-              <div className="shrink-0 pl-1">
+              <div className="shrink-0 text-right">
                 {isFilled ? (
-                  <span className="inline-flex items-center gap-1 rounded-ux bg-emerald-100 border border-emerald-300 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800">
-                    <span>Filled</span>
-                    <span>✅</span>
+                  <span className="font-mono text-[11px] font-semibold text-zinc-900">
+                    {item.value}
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 rounded-ux bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[9px] font-medium text-amber-700">
-                    <span>Pending</span>
-                    <span>⏳</span>
+                  <span className="text-[10px] text-zinc-400 italic">
+                    Pending
                   </span>
                 )}
               </div>
@@ -621,15 +626,15 @@ function IntakeChecklistTable({
         })}
       </div>
 
-      {/* Table Footer Action */}
-      <div className="border-t border-ink-200 bg-ink-50 px-3 py-2 flex items-center justify-between gap-2">
-        <span className="text-[10px] text-ink-600 font-semibold">
-          {countFilled >= 2 ? "Ready to auto-fill report:" : "Provide missing fields above:"}
+      {/* Clean Minimalist Transfer Action */}
+      <div className="px-3.5 py-2.5 bg-zinc-50/60 border-t border-zinc-200/70 flex items-center justify-between gap-3">
+        <span className="text-[10px] text-zinc-500 truncate">
+          {countFilled >= 2 ? "Ready to auto-fill official report" : "Answer AI follow-ups above"}
         </span>
         <button
           type="button"
           onClick={onTransfer}
-          className="inline-flex items-center gap-1.5 rounded-ux bg-brand-600 px-3 py-1.5 text-[11px] font-extrabold text-white hover:bg-brand-700 transition shadow-xs"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-zinc-800 transition shadow-2xs shrink-0"
         >
           <span>Transfer to Form</span>
           <ArrowRight className="h-3.5 w-3.5" />

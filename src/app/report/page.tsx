@@ -149,12 +149,20 @@ export default function ReportPage() {
         if (draft.narrative) setNarrative(draft.narrative);
         if (draft.amount) setAmount(draft.amount.toString());
         if (draft.bankName) setBankName(draft.bankName);
+        if (draft.bankAccount) {
+          setBankAccount(draft.bankAccount);
+        } else if (phone || accountPhone) {
+          setBankAccount(phone || accountPhone || "");
+        }
+        if (draft.paymentMode) setPaymentMode(draft.paymentMode);
         if (draft.utrNumber) setTransactionId(draft.utrNumber);
         if (draft.suspectAccount) setSuspectAccount(draft.suspectAccount);
+        if (draft.suspectName) setSuspectName(draft.suspectName);
         if (draft.suspectPhone) setSuspectPhone(draft.suspectPhone);
         if (draft.suspectHandle) setSuspectHandle(draft.suspectHandle);
         if (draft.suspectWebsite) setSuspectWebsite(draft.suspectWebsite);
         if (draft.channel) setPlatformChannel(draft.channel);
+        if (draft.incidentDate) setIncidentDate(draft.incidentDate);
 
         if (draft.categoryId) {
           const found = CATEGORIES.find((c) => c.id === draft.categoryId);
@@ -505,7 +513,10 @@ export default function ReportPage() {
     setFreezeLoading(true);
 
     const numericAmount = parseFloat(amount);
-    const res = await requestFreezeAction(bankAccount, isNaN(numericAmount) ? 0 : numericAmount);
+    const res = await requestFreezeAction(
+      bankAccount.trim() || phone || accountPhone || "Primary Linked Account",
+      isNaN(numericAmount) ? 0 : numericAmount
+    );
 
     if (res.error) {
       setErrorMessage(res.error);
@@ -1079,10 +1090,9 @@ export default function ReportPage() {
                   <input
                     id="bank-acc"
                     type="text"
-                    required
                     value={bankAccount}
                     onChange={(e) => setBankAccount(e.target.value)}
-                    placeholder="e.g., 9876543210@ybl or A/C No."
+                    placeholder="e.g., 9876543210@ybl or A/C No. (Optional for freeze)"
                     className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2.5 text-base focus:border-brand-500 focus:outline-none"
                   />
                 </div>

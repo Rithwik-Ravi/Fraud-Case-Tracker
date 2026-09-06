@@ -16,12 +16,16 @@ export interface ChatReportDraft {
   categoryLabel?: string;
   amount?: number | null;
   bankName?: string | null;
+  bankAccount?: string | null;
+  paymentMode?: string | null;
   utrNumber?: string | null;
   suspectAccount?: string | null;
+  suspectName?: string | null;
   suspectPhone?: string | null;
   suspectHandle?: string | null;
   suspectWebsite?: string | null;
   channel?: string | null;
+  incidentDate?: string | null;
   isReadyToReport?: boolean;
 }
 
@@ -60,11 +64,18 @@ Your Behavior:
    If all major details (amount, bank, UTR, suspect handle/phone) are already captured, state:
    "All critical statutory fields are captured in the checklist below! Click 'Transfer to Form' to review and submit."
 3. Field Extraction:
-   • "suspectAccount": extract the fraudster's UPI ID / VPA (e.g. handle@ybl, name@okaxis) or destination bank account number.
+   • "suspectAccount": fraudster's UPI ID / VPA (e.g. handle@ybl, name@okaxis) or destination bank account number.
+   • "suspectName": suspect impersonated identity or alias (e.g. "Airtel Executive", "Bank Manager Rajesh", "CBI Officer").
    • "bankName": complainant's bank or payment app (e.g. SBI, HDFC, PhonePe).
+   • "bankAccount": complainant's debited account number, phone number, or UPI ID if mentioned.
+   • "paymentMode": "UPI" | "Net Banking" | "Credit/Debit Card" | "AEPS" | "Wallet" | "Other".
    • "amount": numeric INR amount debited or lost.
    • "utrNumber": 12-digit transaction reference number.
-   • "suspectPhone": suspect caller or WhatsApp number.
+   • "suspectPhone": suspect caller or WhatsApp mobile number.
+   • "suspectHandle": suspect social handle (@...) or Telegram channel.
+   • "suspectWebsite": phishing link, URL, or malicious APK website.
+   • "channel": "WhatsApp" | "Telegram" | "Phone Call" | "SMS" | "Instagram" | "Fake Website" | "Malicious APK" | "Email" | "Other".
+   • "incidentDate": date or approximate timing (e.g. "Today", "06/09/2026").
 4. Digital Arrest Scams: If they mention a video call or police/CBI threatening arrest, emphasize that Digital Arrest is 100% fake in Indian law and they must hang up immediately.
 5. Output format: You MUST reply ONLY with a valid JSON object matching this schema:
 {
@@ -75,12 +86,16 @@ Your Behavior:
     "categoryLabel": "UPI Related Fraud" (or matching official label),
     "amount": number | null,
     "bankName": string | null,
+    "bankAccount": string | null,
+    "paymentMode": "UPI" | "Net Banking" | "Credit/Debit Card" | "AEPS" | "Wallet" | "Other" | null,
     "utrNumber": string | null,
     "suspectAccount": string | null,
+    "suspectName": string | null,
     "suspectPhone": string | null,
     "suspectHandle": string | null,
     "suspectWebsite": string | null,
     "channel": "WhatsApp" | "Telegram" | "Phone Call" | "SMS" | "Instagram" | "Fake Website" | "Malicious APK" | "Email" | "Other" | null,
+    "incidentDate": string | null,
     "isReadyToReport": boolean
   }
 }`;
@@ -250,33 +265,48 @@ function generateReportingFallback(messages: ChatMessage[]): { reply: string; dr
     categoryLabel = "Work from Home / Job Scam";
   }
 
+  // Bank extraction
+  let bankName: string | null = null;
+  if (fullText.includes("sbi") || fullText.includes("state bank")) bankName = "State Bank of India";
+  else if (fullText.includes("hdfc")) bankName = "HDFC Bank";
+  else if (fullText.includes("icici")) bankName = "ICICI Bank";
+  else if (fullText.includes("axis")) bankName = "Axis Bank";
+  else if (fullText.includes("pnb") || fullText.includes("punjab national")) bankName = "Punjab National Bank";
+  else if (fullText.includes("phonepe")) bankName = "PhonePe (UPI)";
+  else if (fullText.includes("gpay") || fullText.includes("google pay")) bankName = "Google Pay (UPI)";
+  else if (fullText.includes("paytm")) bankName = "Paytm Payments Bank";
+
+  // Payment mode
+  let paymentMode: string = "UPI";
+  if (fullText.includes("card") || fullText.includes("cvv") || fullText.includes("atm")) paymentMode = "Credit/Debit Card";
+  else if (fullText.includes("net banking") || fullText.includes("imps") || fullText.includes("neft")) paymentMode = "Net Banking";
+  else if (fullText.includes("wallet")) paymentMode = "Wallet";
+
+  // Suspect Name
+  let suspectName: string | null = null;
+  const aliasMatch = userTexts.match(/(?:pretending to be|claiming to be|named|alias)\s+([A-Za-z\s]{3,30})/i);
+  if (aliasMatch) suspectName = aliasMatch[1].trim();
+
+  // Incident Date
+  let incidentDate: string = "Today";
+  if (fullText.includes("yesterday")) incidentDate = "Yesterday";
+
   const isReadyToReport = Boolean(amount || utrNumber || suspectAccount || suspectPhone || userTexts.length > 50);
 
   // Generate guided assistant reply
-  let reply = "Thank you for sharing this. I have started drafting your official incident report.\n\n";
+  let reply = "Thank you for sharing this. I have recorded your incident facts in the checklist below.\n\n";
 
   const missing: string[] = [];
-  if (!amount && (categoryId === "upi_fraud" || categoryId === "card_fraud")) {
-    missing.push("How much money was debited or transferred (in ₹)?");
-  }
-  if (!utrNumber && amount) {
-    missing.push("Do you have the 12-digit UTR reference number from your bank SMS?");
-  }
-  if (!suspectAccount && !suspectPhone && !suspectHandle) {
-    missing.push("Do you have the scammer's phone number, UPI ID, or username?");
-  }
+  if (!amount) missing.push("Exact financial loss amount (in ₹)");
+  if (!utrNumber && amount) missing.push("12-digit UTR transaction reference number from bank SMS");
+  if (!suspectAccount && !suspectPhone && !suspectHandle) missing.push("Scammer's UPI ID, phone number, or profile handle");
 
   if (missing.length > 0) {
-    reply += "To make your complaint as strong as possible for law enforcement, could you tell me:\n" +
+    reply += "Follow-ups needed for your report:\n" +
       missing.map((m) => `• ${m}`).join("\n") +
-      "\n\nYou can also click 'Transfer to Official Report Form' at any time to review and submit.";
+      "\n\nYou can also click 'Transfer to Form' below at any time to proceed.";
   } else {
-    reply += "I've captured the key facts of your incident:\n" +
-      (amount ? `• Reported Loss: ₹${amount.toLocaleString("en-IN")}\n` : "") +
-      (utrNumber ? `• Transaction UTR: ${utrNumber}\n` : "") +
-      (suspectAccount ? `• Suspect UPI: ${suspectAccount}\n` : "") +
-      (suspectPhone ? `• Suspect Mobile: ${suspectPhone}\n` : "") +
-      "\nYou're ready to proceed! Click 'Transfer to Official Report Form' below to verify your details and generate your official stamped complaint.";
+    reply += "All critical statutory fields are captured in the checklist below! Click 'Transfer to Form' to review and submit your official complaint.";
   }
 
   return {
@@ -286,11 +316,17 @@ function generateReportingFallback(messages: ChatMessage[]): { reply: string; dr
       categoryId,
       categoryLabel,
       amount,
+      bankName,
+      bankAccount: null,
+      paymentMode,
       utrNumber,
       suspectAccount,
+      suspectName,
       suspectPhone,
       suspectHandle,
+      suspectWebsite: null,
       channel,
+      incidentDate,
       isReadyToReport,
     },
   };
