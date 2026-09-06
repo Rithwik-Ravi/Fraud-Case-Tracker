@@ -51,19 +51,22 @@ Key Rules & Guidelines:
 8. Keep responses concise, formatted with clear bullet points, and easy to read on mobile.`;
 
 const REPORTING_SYSTEM_PROMPT = `You are CasePilot's Cyber Incident Intake Officer for Indian citizens.
-Your objective is to conversationally interview the victim, gather their incident facts with empathy, and construct an official complaint draft so they don't have to fill complex forms alone.
+Your objective is to conversationally interview the victim, gather their incident facts with empathy, and construct an official complaint draft so they don't have to navigate complex government forms alone.
 
 Your Behavior:
 1. Speak with calm empathy and reassuring clarity.
-2. Structure your "reply" string in two clear parts:
-   Part 1: Empathetic acknowledgement of what was shared.
-   Part 2: If any critical statutory fields are still missing, explain to the victim IN PROPER PROCEDURAL AND LEGAL TERMS WHY EACH SPECIFIC DETAIL IS NEEDED by the police and banking nodal network:
-   • 12-Digit Transaction UTR: Explain that this is the unique inter-bank identifier required by the 1930 / CFCFRMS nodal network to immediately freeze the recipient account before money is laundered across mule accounts.
-   • Exact Financial Loss (₹): Explain that police FIRs and bank recovery mandates under BNSS Section 503 require an exact certified debit figure.
-   • Complainant Bank & Debited Account: Explain that your home bank needs this to register an unauthorized debit dispute and authenticate your identity.
-   • Suspect UPI / Account / Mobile: Explain that cyber investigators require the scammer's destination accounts and phone numbers to issue statutory Section 94 BNSS preservation notices to telecom operators and banks.
-   • Platform / Channel: Explain that identifying whether contact was via WhatsApp, Telegram, or phone call enables cyber units to trace server logs and phishing origins.
-   If all major details are already captured, reassure them that all necessary facts have been recorded and invite them to click 'Transfer to Form' to complete their official filing.
+2. Structure your "reply" into two distinct parts:
+   Part 1: A warm, empathetic acknowledgement of what the citizen shared, confirming any details captured so far.
+   Part 2: Following up with their Case Intake Checklist, explain to the victim IN PROPER PROCEDURAL AND LEGAL TERMS WHY THERE IS A NEED FOR EACH PENDING DETAIL TO BE FILLED:
+   • 12-Digit Transaction UTR: Explain that the National Cyber Crime Reporting Portal (1930 / CFCFRMS) requires this 12-digit reference to issue an automated instant lien hold on the recipient bank account before money is laundered across mule accounts.
+   • Suspect UPI ID / Account Number: Explain that cyber investigators and beneficiary banks need the scammer's destination account or UPI handle to issue statutory Section 94 BNSS debit-freeze notices to stop cash withdrawals at ATMs.
+   • Exact Financial Loss (₹): Explain that police FIR registration and restitution mandates under BNSS Section 503 require an exact certified debit figure.
+   • Your Bank & Debited Account / Phone: Explain that RBI Customer Protection guidelines require your home bank to authenticate you as the authorized account owner and log an official unauthorized debit dispute.
+   • Incident Date & Time: Explain that this determines eligibility for the critical 120-minute 'Golden Hour' intervention (which yields the highest fund recovery rates on 1930) and proves compliance with RBI's 3-day zero-liability window.
+   • Suspect Phone Number / Contact: Explain that police cyber cells require caller/messaging numbers to request Call Detail Records (CDR) and telecom preservation orders under Section 91/94 BNSS.
+   • Communication Platform / Channel: Explain that identifying whether contact was via WhatsApp, Telegram, or phone call enables forensic evidence preservation under Bharatiya Sakshya Adhiniyam Section 63.
+
+   If all critical details are already captured, reassure them that all necessary facts have been recorded and invite them to click 'Transfer to Form' to complete their official filing.
 3. Field Extraction:
    • "suspectAccount": fraudster's UPI ID / VPA (e.g. handle@ybl, name@okaxis) or destination bank account number.
    • "suspectName": suspect impersonated identity or alias (e.g. "Airtel Executive", "Bank Manager Rajesh", "CBI Officer").
@@ -77,9 +80,9 @@ Your Behavior:
    • "suspectWebsite": phishing link, URL, or malicious APK website.
    • "channel": "WhatsApp" | "Telegram" | "Phone Call" | "SMS" | "Instagram" | "Fake Website" | "Malicious APK" | "Email" | "Other".
    • "incidentDate": date or approximate timing (e.g. "Today", "06/09/2026").
-5. Output format: You MUST reply ONLY with a valid JSON object matching this schema:
+4. Output format: You MUST reply ONLY with a valid JSON object matching this schema:
 {
-  "reply": "Your message containing: (1) A warm, empathetic acknowledgement. (2) If fields are missing, a section titled 'Details needed for police investigation and bank freeze:' with bullet points for each missing detail explaining why it is required (e.g., UTR is needed for the 1930 CFCFRMS inter-bank lien hold, Loss Amount is required under BNSS 503, Suspect UPI/Phone is required for Section 94 BNSS preservation orders). If all fields are present, celebrate that the complaint draft is complete and ready to transfer.",
+  "reply": "Your message containing: (1) A warm, empathetic acknowledgement. (2) A section following up on the checklist explaining in proper terms why each pending detail is needed by law enforcement and banks. (3) Encouraging next steps.",
   "draft": {
     "narrative": "A cohesive 2-4 sentence summary of the incident based on everything the victim shared.",
     "categoryId": "upi_fraud" | "net_banking" | "card_fraud" | "investment_scam" | "job_scam" | "loan_app_scam" | "digital_arrest" | "sextortion" | "impersonation" | "other_cybercrime",
@@ -99,6 +102,105 @@ Your Behavior:
     "isReadyToReport": boolean
   }
 }`;
+
+export interface StatutoryFieldExplanation {
+  fieldKey: string;
+  name: string;
+  reason: string;
+}
+
+/**
+ * Returns procedural and statutory justifications under Indian law (BNSS, 1930 / CFCFRMS, RBI, BSA)
+ * explaining why each remaining detail is needed by police cyber cells and banks.
+ */
+export function getStatutoryFieldExplanations(
+  draft: ChatReportDraft | null | undefined
+): StatutoryFieldExplanation[] {
+  if (!draft) return [];
+  const list: StatutoryFieldExplanation[] = [];
+
+  // 1. Transaction UTR
+  if (!draft.utrNumber) {
+    list.push({
+      fieldKey: "utrNumber",
+      name: "12-Digit Transaction UTR (or UPI Ref No.)",
+      reason:
+        "Statutory inter-bank tracking number required by the National Cyber Crime Reporting Portal (1930 / CFCFRMS). Nodal banks need this unique 12-digit code to immediately trace the payment hop across beneficiary accounts and place an emergency lien freeze on the recipient account before money is siphoned into mule networks.",
+    });
+  }
+
+  // 2. Suspect Account / UPI ID
+  if (!draft.suspectAccount) {
+    list.push({
+      fieldKey: "suspectAccount",
+      name: "Suspect's UPI ID or Destination Account Number",
+      reason:
+        "Cyber investigators and beneficiary banks require the scammer's destination account or UPI handle to issue statutory debit-freeze notices under Section 94 of Bharatiya Nagarik Suraksha Sanhita (BNSS) and stop cash withdrawals at ATMs.",
+    });
+  }
+
+  // 3. Loss Amount
+  if (!draft.amount) {
+    list.push({
+      fieldKey: "amount",
+      name: "Reported Financial Loss Amount (₹)",
+      reason:
+        "Mandatory under BNSS Section 173(3) and Section 503 to establish certified pecuniary loss for police FIR registration and authorize judicial release of recovered funds back to you.",
+    });
+  }
+
+  // 4. Complainant Bank Name
+  if (!draft.bankName) {
+    list.push({
+      fieldKey: "bankName",
+      name: "Your Bank or Payment App Name",
+      reason:
+        "Needed to identify your home bank's nodal fraud desk so they can register an unauthorized electronic debit dispute and initiate inter-bank recovery protocols.",
+    });
+  }
+
+  // 5. Complainant Bank Account / Mobile
+  if (!draft.bankAccount) {
+    list.push({
+      fieldKey: "bankAccount",
+      name: "Your Debited Account Number or Linked Mobile",
+      reason:
+        "Required under RBI Customer Protection guidelines to authenticate you as the lawful account owner and issue an official unauthorized transaction grievance token.",
+    });
+  }
+
+  // 6. Incident Date & Time
+  if (!draft.incidentDate) {
+    list.push({
+      fieldKey: "incidentDate",
+      name: "Date & Approximate Time of Transaction",
+      reason:
+        "Determines whether your incident falls within the high-priority 120-minute 'Golden Hour' intervention (which yields the highest fund recovery rates on 1930), and preserves your right to full zero-liability restitution under RBI guidelines.",
+    });
+  }
+
+  // 7. Suspect Contact (Phone / Handle)
+  if (!draft.suspectPhone && !draft.suspectHandle) {
+    list.push({
+      fieldKey: "suspectContact",
+      name: "Suspect's Mobile Number or Social Handle",
+      reason:
+        "Required by police cyber units to serve preservation notices on telecom operators and obtain Call Detail Records (CDR) and IPDR server logs under Section 91/94 BNSS.",
+    });
+  }
+
+  // 8. Communication Channel
+  if (!draft.channel) {
+    list.push({
+      fieldKey: "channel",
+      name: "Platform or Attack Channel (WhatsApp, Telegram, Phone Call, Phishing APK)",
+      reason:
+        "Identifies the modus operandi and attack vector to preserve electronic evidence and server logs under Bharatiya Sakshya Adhiniyam (BSA) Section 63.",
+    });
+  }
+
+  return list;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -127,7 +229,7 @@ export async function POST(req: NextRequest) {
           const response = await openai.chat.completions.create({
             model: "gpt-4o-mini",
             temperature: 0.2,
-            max_tokens: 700,
+            max_tokens: 850,
             response_format: { type: "json_object" },
             messages: [
               { role: "system", content: REPORTING_SYSTEM_PROMPT },
@@ -142,36 +244,44 @@ export async function POST(req: NextRequest) {
           try {
             const parsed = JSON.parse(raw);
             let replyText = parsed.reply || "I have recorded your details.";
-            const draft = parsed.draft || null;
+            const draft: ChatReportDraft | null = parsed.draft || null;
 
             if (draft) {
-              const missingExplanations: string[] = [];
-              if (!draft.amount) {
-                missingExplanations.push(
-                  "• **Reported Loss Amount (₹)**: Required by police cyber units and banking recovery mandates under BNSS Section 503 to register the certified quantified loss figure."
-                );
-              }
-              if (!draft.utrNumber) {
-                missingExplanations.push(
-                  "• **12-Digit Transaction UTR**: The statutory inter-bank reference number needed by the 1930 / CFCFRMS nodal network to immediately place a lien freeze on the recipient account before money is laundered."
-                );
-              }
-              if (!draft.bankName) {
-                missingExplanations.push(
-                  "• **Your Bank / Payment App**: Needed for your home bank to authenticate unauthorized debit instructions and initiate inter-bank restitution."
-                );
-              }
-              if (!draft.suspectAccount && !draft.suspectPhone) {
-                missingExplanations.push(
-                  "• **Suspect Account / UPI ID or Mobile Number**: Cyber investigators require the scammer's beneficiary accounts and phone numbers to issue statutory Section 94 BNSS preservation notices to banks and telecom operators."
-                );
-              }
+              const explanations = getStatutoryFieldExplanations(draft);
 
-              if (missingExplanations.length > 0 && !replyText.includes("BNSS") && !replyText.includes("CFCFRMS")) {
-                replyText +=
-                  "\n\n**To ensure your complaint carries statutory legal weight and your bank can freeze the funds, please provide:**\n\n" +
-                  missingExplanations.join("\n\n") +
-                  "\n\n*You can reply directly here with any details you have, or click 'Transfer to Form' below.*";
+              if (explanations.length > 0) {
+                // Check if reply already explicitly articulates the explanations in proper terms
+                const hasDetailedBreakdown =
+                  explanations.length <= 2 &&
+                  explanations.every((exp) =>
+                    replyText.toLowerCase().includes(exp.fieldKey.toLowerCase().slice(0, 4)) ||
+                    replyText.toLowerCase().includes(exp.name.toLowerCase().slice(0, 6))
+                  ) &&
+                  (replyText.includes("1930") || replyText.includes("BNSS") || replyText.includes("CFCFRMS") || replyText.includes("freeze"));
+
+                if (!hasDetailedBreakdown) {
+                  // Clean off any redundant trailing call-to-action before appending structured breakdown
+                  replyText = replyText
+                    .replace(/\n\n\*You can reply directly[\s\S]*$/i, "")
+                    .replace(/\n\n\*\*To ensure your complaint carries statutory[\s\S]*$/i, "")
+                    .replace(/\n\n\*\*Following up with your Case Intake Checklist[\s\S]*$/i, "")
+                    .trim();
+
+                  const missingSection =
+                    "\n\n**Following up with your Case Intake Checklist, here is why law enforcement and your bank specifically need you to fill in the remaining details:**\n\n" +
+                    explanations
+                      .map((exp, idx) => `${idx + 1}. **${exp.name}**:\n   ${exp.reason}`)
+                      .join("\n\n") +
+                    "\n\n*You can reply directly here with any details you have, or click 'Transfer to Form' below to fill them into the official report.*";
+
+                  replyText = replyText + missingSection;
+                }
+              } else {
+                if (!replyText.toLowerCase().includes("transfer to form") && !replyText.toLowerCase().includes("ready")) {
+                  replyText =
+                    replyText.trim() +
+                    "\n\n**All critical statutory details have been captured!** Your complaint now contains the certified identifiers needed for police FIR registration under BNSS and an emergency bank lien freeze under 1930 / CFCFRMS. Please click **Transfer to Form** below to review and submit your official filing.";
+                }
               }
             }
 
@@ -316,69 +426,59 @@ function generateReportingFallback(messages: ChatMessage[]): { reply: string; dr
   else if (fullText.includes("net banking") || fullText.includes("imps") || fullText.includes("neft")) paymentMode = "Net Banking";
   else if (fullText.includes("wallet")) paymentMode = "Wallet";
 
-  // Suspect Name
+  // Suspect Name (Hindi & English patterns)
   let suspectName: string | null = null;
+  const hindiAliasMatch = userTexts.match(/([A-Za-z\s]{3,30})\s+ban\s+kar/i);
   const aliasMatch = userTexts.match(/(?:pretending to be|claiming to be|named|alias)\s+([A-Za-z\s]{3,30})/i);
-  if (aliasMatch) suspectName = aliasMatch[1].trim();
+  if (hindiAliasMatch) {
+    const raw = hindiAliasMatch[1].replace(/^(?:ek\s+vyakti\s+ne|kisi\s+ne|caller|someone|fraudster)\s+/i, "").trim();
+    suspectName = raw.charAt(0).toUpperCase() + raw.slice(1);
+  } else if (aliasMatch) {
+    const raw = aliasMatch[1].replace(/^(?:a|an|the)\s+/i, "").trim();
+    suspectName = raw.charAt(0).toUpperCase() + raw.slice(1);
+  }
 
   // Incident Date
   let incidentDate: string = "Today";
-  if (fullText.includes("yesterday")) incidentDate = "Yesterday";
+  if (fullText.includes("yesterday") || fullText.includes("kal")) incidentDate = "Yesterday";
 
   const isReadyToReport = Boolean(amount || utrNumber || suspectAccount || suspectPhone || userTexts.length > 50);
 
-  // Generate guided assistant reply
+  const draft: ChatReportDraft = {
+    narrative: userTexts.slice(0, 500),
+    categoryId,
+    categoryLabel,
+    amount,
+    bankName,
+    bankAccount: null,
+    paymentMode,
+    utrNumber,
+    suspectAccount,
+    suspectName,
+    suspectPhone,
+    suspectHandle,
+    suspectWebsite: null,
+    channel,
+    incidentDate,
+    isReadyToReport,
+  };
+
+  const explanations = getStatutoryFieldExplanations(draft);
   let reply = "Thank you for sharing this. I have recorded your incident facts in the checklist below.\n\n";
 
-  const missingExplanations: { name: string; reason: string }[] = [];
-  if (!amount) {
-    missingExplanations.push({
-      name: "Exact Financial Loss Amount (₹)",
-      reason: "Required by police cyber units and banking recovery mandates under BNSS Section 503 to register the certified loss figure for fund recovery.",
-    });
-  }
-  if (!utrNumber && amount) {
-    missingExplanations.push({
-      name: "12-Digit Transaction UTR",
-      reason: "This is the statutory inter-bank reference number needed by the 1930 / CFCFRMS nodal network to immediately trace and freeze the fraudster's account before money is siphoned across mule networks.",
-    });
-  }
-  if (!suspectAccount && !suspectPhone && !suspectHandle) {
-    missingExplanations.push({
-      name: "Suspect UPI ID, Phone Number, or Account",
-      reason: "Investigating cyber cells require beneficiary account handles and phone numbers to issue statutory Section 94 BNSS preservation orders to telecom operators and banks.",
-    });
-  }
-
-  if (missingExplanations.length > 0) {
-    reply += "To ensure your complaint carries full statutory weight for police investigation and banking freeze, we need a few critical details:\n\n" +
-      missingExplanations.map((m) => `• **${m.name}**: ${m.reason}`).join("\n\n") +
-      "\n\nPlease reply with any of these details you have, or click 'Transfer to Form' below to continue.";
+  if (explanations.length > 0) {
+    reply +=
+      "**Following up with your Case Intake Checklist, here is why law enforcement and your bank specifically need you to fill in the remaining details:**\n\n" +
+      explanations
+        .map((exp, idx) => `${idx + 1}. **${exp.name}**:\n   ${exp.reason}`)
+        .join("\n\n") +
+      "\n\n*You can reply directly here with any details you have, or click 'Transfer to Form' below to fill them into the official report.*";
   } else {
-    reply += "All critical statutory fields are captured in your checklist below! Your complaint has all the essential identifiers required for police inquiry and banking freeze. Click 'Transfer to Form' to review and submit.";
+    reply +=
+      "**All critical statutory details have been captured!** Your complaint now contains the certified identifiers needed for police FIR registration under BNSS and an emergency bank lien freeze under 1930 / CFCFRMS. Please click **Transfer to Form** below to review and submit your official filing.";
   }
 
-  return {
-    reply,
-    draft: {
-      narrative: userTexts.slice(0, 500),
-      categoryId,
-      categoryLabel,
-      amount,
-      bankName,
-      bankAccount: null,
-      paymentMode,
-      utrNumber,
-      suspectAccount,
-      suspectName,
-      suspectPhone,
-      suspectHandle,
-      suspectWebsite: null,
-      channel,
-      incidentDate,
-      isReadyToReport,
-    },
-  };
+  return { reply, draft };
 }
 
 /**

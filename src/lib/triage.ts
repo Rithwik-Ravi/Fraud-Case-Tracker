@@ -342,6 +342,28 @@ export function extractDeterministicFields(safeText: string, detectedAmount?: nu
     fields.incidentDate = "Yesterday";
   }
 
+  // 9. Suspect Name / Impersonated Alias (Hindi & English patterns)
+  const hindiAlias = safeText.match(/([a-zA-Z\s]{3,30})\s+ban\s+kar/i);
+  const engAlias = safeText.match(/(?:pretending to be|claiming to be|impersonating|officer|named|alias)\s+([a-zA-Z\s]{3,30})/i);
+  if (hindiAlias) {
+    const raw = hindiAlias[1]
+      .replace(/^(?:ek\s+vyakti\s+ne|kisi\s+ne|caller|someone|fraudster|scammer|person)\s+/i, "")
+      .trim();
+    fields.suspectName = raw.charAt(0).toUpperCase() + raw.slice(1);
+  } else if (engAlias) {
+    const raw = engAlias[1]
+      .replace(/^(?:a|an|the)\s+/i, "")
+      .trim();
+    fields.suspectName = raw.charAt(0).toUpperCase() + raw.slice(1);
+  }
+
+  // 10. Bank Name
+  if (/\b(?:sbi|state bank)\b/i.test(safeText)) fields.bankName = "State Bank of India";
+  else if (/\b(?:hdfc)\b/i.test(safeText)) fields.bankName = "HDFC Bank";
+  else if (/\b(?:icici)\b/i.test(safeText)) fields.bankName = "ICICI Bank";
+  else if (/\b(?:axis)\b/i.test(safeText)) fields.bankName = "Axis Bank";
+  else if (/\b(?:pnb|punjab national)\b/i.test(safeText)) fields.bankName = "Punjab National Bank";
+
   return fields;
 }
 

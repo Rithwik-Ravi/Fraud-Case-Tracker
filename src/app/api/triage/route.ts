@@ -34,6 +34,19 @@ export async function POST(req: NextRequest) {
       });
       if (aiRes.ok) {
         const aiData: TriageResult = await aiRes.json();
+        // Augment extractedFields with deterministic regex for aliases (Hindi/English), bank names, and dates
+        const fallbackFields = classifyNarrative(narrative).extractedFields || {};
+        aiData.extractedFields = {
+          ...fallbackFields,
+          ...(aiData.extractedFields || {}),
+        };
+        // Ensure suspectName is populated if missing from python response
+        if (!aiData.extractedFields.suspectName && fallbackFields.suspectName) {
+          aiData.extractedFields.suspectName = fallbackFields.suspectName;
+        }
+        if (!aiData.extractedFields.bankName && fallbackFields.bankName) {
+          aiData.extractedFields.bankName = fallbackFields.bankName;
+        }
         return NextResponse.json(aiData);
       }
     } catch {

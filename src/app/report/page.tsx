@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useLang } from "@/context/LanguageContext";
@@ -27,6 +27,7 @@ import {
   submitComplaintAction,
 } from "@/actions/report";
 import {
+  CheckCircle,
   CheckCircle2,
   ShieldAlert,
   Mic,
@@ -138,57 +139,84 @@ export default function ReportPage() {
   const [copiedAck, setCopiedAck] = useState(false);
   const [draftBannerMessage, setDraftBannerMessage] = useState<string>("");
 
-  // Check for pre-filled draft imported from AI Chatbot
+  /**
+   * Universal draft populator: applies fields from either initial sessionStorage
+   * or real-time live events broadcast by the open AI Chatbot drawer.
+   */
+  const applyDraftToForm = useCallback((draft: any) => {
+    if (!draft) return;
+
+    if (draft.narrative) setNarrative(draft.narrative);
+    if (draft.amount !== undefined && draft.amount !== null) {
+      setAmount(draft.amount.toString());
+    }
+    if (draft.bankName) setBankName(draft.bankName);
+    if (draft.bankAccount) {
+      setBankAccount(draft.bankAccount);
+    } else if (phone || accountPhone) {
+      setBankAccount(phone || accountPhone || "");
+    }
+    if (draft.paymentMode) setPaymentMode(draft.paymentMode);
+    if (draft.utrNumber) setTransactionId(draft.utrNumber);
+    if (draft.suspectAccount) setSuspectAccount(draft.suspectAccount);
+    if (draft.suspectName) setSuspectName(draft.suspectName);
+    if (draft.suspectPhone) setSuspectPhone(draft.suspectPhone);
+    if (draft.suspectHandle) setSuspectHandle(draft.suspectHandle);
+    if (draft.suspectWebsite) setSuspectWebsite(draft.suspectWebsite);
+    if (draft.channel) setPlatformChannel(draft.channel);
+    if (draft.incidentDate) setIncidentDate(draft.incidentDate);
+
+    if (draft.categoryId) {
+      const found = CATEGORIES.find((c) => c.id === draft.categoryId);
+      if (found) setSelectedCategory(found);
+    }
+
+    const pills: string[] = [];
+    if (draft.categoryLabel) pills.push(`Category: ${draft.categoryLabel}`);
+    if (draft.amount) pills.push(`Loss: ₹${Number(draft.amount).toLocaleString("en-IN")}`);
+    if (draft.bankName) pills.push(`Bank: ${draft.bankName}`);
+    if (draft.utrNumber) pills.push(`UTR: ${draft.utrNumber}`);
+    if (draft.suspectAccount) pills.push(`UPI: ${draft.suspectAccount}`);
+    if (draft.suspectPhone) pills.push(`Suspect: ${draft.suspectPhone}`);
+    if (draft.suspectName) pills.push(`Alias: ${draft.suspectName}`);
+    if (pills.length > 0) setExtractedPills(pills);
+
+    setDraftBannerMessage("✨ Auto-filled 11 statutory details from your AI Assistant into this official complaint form!");
+
+    // Advance to next step only if user is currently sitting on the initial empty narrative screen
+    setCurrentStep((prev) => {
+      if (prev === "NARRATIVE") {
+        return draft.amount && Number(draft.amount) > 0 ? "FREEZE" : "DETAILS";
+      }
+      return prev; // keep the user on their current step if they are already on FREEZE or DETAILS!
+    });
+  }, [phone, accountPhone]);
+
+  // Real-time live draft synchronization between floating AI Chatbot & this report page
   useEffect(() => {
+    // 1. Initial check from sessionStorage
     try {
       const savedDraft = sessionStorage.getItem("casepilot_chatbot_draft");
       if (savedDraft) {
         const draft = JSON.parse(savedDraft);
-        sessionStorage.removeItem("casepilot_chatbot_draft");
-
-        if (draft.narrative) setNarrative(draft.narrative);
-        if (draft.amount) setAmount(draft.amount.toString());
-        if (draft.bankName) setBankName(draft.bankName);
-        if (draft.bankAccount) {
-          setBankAccount(draft.bankAccount);
-        } else if (phone || accountPhone) {
-          setBankAccount(phone || accountPhone || "");
-        }
-        if (draft.paymentMode) setPaymentMode(draft.paymentMode);
-        if (draft.utrNumber) setTransactionId(draft.utrNumber);
-        if (draft.suspectAccount) setSuspectAccount(draft.suspectAccount);
-        if (draft.suspectName) setSuspectName(draft.suspectName);
-        if (draft.suspectPhone) setSuspectPhone(draft.suspectPhone);
-        if (draft.suspectHandle) setSuspectHandle(draft.suspectHandle);
-        if (draft.suspectWebsite) setSuspectWebsite(draft.suspectWebsite);
-        if (draft.channel) setPlatformChannel(draft.channel);
-        if (draft.incidentDate) setIncidentDate(draft.incidentDate);
-
-        if (draft.categoryId) {
-          const found = CATEGORIES.find((c) => c.id === draft.categoryId);
-          if (found) setSelectedCategory(found);
-        }
-
-        const pills: string[] = [];
-        if (draft.categoryLabel) pills.push(`Category: ${draft.categoryLabel}`);
-        if (draft.amount) pills.push(`Loss: ₹${Number(draft.amount).toLocaleString("en-IN")}`);
-        if (draft.bankName) pills.push(`Bank: ${draft.bankName}`);
-        if (draft.utrNumber) pills.push(`UTR: ${draft.utrNumber}`);
-        if (draft.suspectAccount) pills.push(`UPI: ${draft.suspectAccount}`);
-        if (pills.length > 0) setExtractedPills(pills);
-
-        setDraftBannerMessage("✨ Case facts imported from your AI Chat session. You can review or edit any field below.");
-
-        if (draft.amount && Number(draft.amount) > 0) {
-          setCurrentStep("FREEZE");
-        } else {
-          setCurrentStep("DETAILS");
-        }
+        applyDraftToForm(draft);
       }
     } catch (e) {
       console.warn("Could not load chatbot draft:", e);
     }
-  }, []);
+
+    // 2. Real-time event listener for live transfer from the open AI Chatbot drawer
+    const handleDraftEvent = (e: any) => {
+      if (e?.detail) {
+        applyDraftToForm(e.detail);
+      }
+    };
+
+    window.addEventListener("casepilot:apply-draft" as any, handleDraftEvent);
+    return () => {
+      window.removeEventListener("casepilot:apply-draft" as any, handleDraftEvent);
+    };
+  }, [applyDraftToForm]);
 
   // Sync assisted mode default & pre-fill phone from account
   useEffect(() => {
@@ -736,6 +764,23 @@ export default function ReportPage() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10">
+      {/* Draft Transfer Notification Banner */}
+      {draftBannerMessage && (
+        <div className="mb-6 rounded-ux border-2 border-emerald-500 bg-emerald-50 p-3.5 text-xs text-emerald-900 flex items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0" />
+            <span className="font-semibold">{draftBannerMessage}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setDraftBannerMessage("")}
+            className="text-emerald-700 hover:text-emerald-900 font-bold px-1.5 py-0.5 rounded hover:bg-emerald-100 transition"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* 6-Stage Stepper Header */}
       <ol className="mb-8 flex flex-wrap items-center gap-x-2 gap-y-2 text-xs sm:text-sm" aria-label="Progress">
         <li className="flex items-center gap-1.5">
@@ -1298,6 +1343,20 @@ export default function ReportPage() {
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
+                  <label htmlFor="suspect-account" className="block text-xs font-semibold text-ink-700 mb-1">
+                    Suspect UPI ID / Beneficiary Account Number
+                  </label>
+                  <input
+                    id="suspect-account"
+                    type="text"
+                    value={suspectAccount}
+                    onChange={(e) => setSuspectAccount(e.target.value)}
+                    placeholder="e.g., fraud.node@axisbank or 9876543210@paytm"
+                    className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm focus:border-brand-500 focus:outline-none font-mono"
+                  />
+                </div>
+
+                <div>
                   <label htmlFor="suspect-handle" className="block text-xs font-semibold text-ink-700 mb-1">
                     Social Media Handle / Telegram ID / Group Link
                   </label>
@@ -1310,7 +1369,9 @@ export default function ReportPage() {
                     className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm focus:border-brand-500 focus:outline-none"
                   />
                 </div>
+              </div>
 
+              <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label htmlFor="suspect-web" className="block text-xs font-semibold text-ink-700 mb-1">
                     Phishing Website / Malicious APK Download Link
@@ -1324,20 +1385,20 @@ export default function ReportPage() {
                     className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm focus:border-brand-500 focus:outline-none"
                   />
                 </div>
-              </div>
 
-              <div>
-                <label htmlFor="suspect-extra" className="block text-xs font-semibold text-ink-700 mb-1">
-                  Additional Suspect Details / Physical Address
-                </label>
-                <input
-                  id="suspect-extra"
-                  type="text"
-                  value={suspectDetails}
-                  onChange={(e) => setSuspectDetails(e.target.value)}
-                  placeholder="Any other details (accent, email, crypto wallet address, fake badge ID)"
-                  className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm focus:border-brand-500 focus:outline-none"
-                />
+                <div>
+                  <label htmlFor="suspect-extra" className="block text-xs font-semibold text-ink-700 mb-1">
+                    Additional Suspect Details / Physical Address
+                  </label>
+                  <input
+                    id="suspect-extra"
+                    type="text"
+                    value={suspectDetails}
+                    onChange={(e) => setSuspectDetails(e.target.value)}
+                    placeholder="Any other details (accent, email, crypto wallet address, fake badge ID)"
+                    className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm focus:border-brand-500 focus:outline-none"
+                  />
+                </div>
               </div>
             </div>
 

@@ -18,8 +18,14 @@ import {
   CheckCircle2,
   Check,
   Clock,
+  Volume2,
+  VolumeX,
+  Mic,
+  MicOff,
+  Square,
 } from "lucide-react";
 import { useAssist } from "@/context/AssistContext";
+import { SpeechController } from "@/lib/voice";
 
 interface Message {
   id: string;
@@ -61,7 +67,7 @@ const INITIAL_REPORTING_MESSAGE: Message = {
   id: "msg-welcome-reporting",
   role: "assistant",
   content:
-    "Welcome to Guided Incident Reporting. I will help you record and organize the facts of your cyber incident step-by-step so you don't have to navigate complex government forms alone.\n\nTo begin, what happened in your own words?",
+    "Welcome to Guided Incident Intake. I will help you document your cyber incident step-by-step and explain each statutory detail needed for an immediate bank freeze and police FIR under Indian law.\n\nTo begin, what happened in your own words? (Feel free to type or tap the microphone to speak).",
   timestamp: "Just now",
 };
 
@@ -96,6 +102,106 @@ export default function AIChatbot() {
   const [engineStatus, setEngineStatus] = useState<"ready" | "openai" | "offline">("ready");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { speak, assist } = useAssist();
+
+  // ── Voice Assistance (Text to Voice) ───────────────────────────────────────
+  const [voiceAssistance, setVoiceAssistance] = useState(false);
+  const [playingMsgId, setPlayingMsgId] = useState<string | null>(null);
+
+  // ── Speech Recognition (Voice to Text) ─────────────────────────────────────
+  const [isListening, setIsListening] = useState(false);
+  const [speechLang, setSpeechLang] = useState<"hi-IN" | "en-IN">("en-IN");
+  const recognitionRef = useRef<any>(null);
+
+  // Initialize browser speech recognition
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      if (SpeechRec) {
+        const rec = new SpeechRec();
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.lang = speechLang;
+
+        rec.onstart = () => {
+          setIsListening(true);
+        };
+
+        rec.onresult = (event: any) => {
+          let currentTranscript = "";
+          for (let i = 0; i < event.results.length; i++) {
+            currentTranscript += event.results[i][0].transcript;
+          }
+          if (currentTranscript.trim()) {
+            setInput(currentTranscript);
+          }
+        };
+
+        rec.onerror = (e: any) => {
+          console.warn("[SpeechRecognition] error:", e.error);
+          setIsListening(false);
+        };
+
+        rec.onend = () => {
+          setIsListening(false);
+        };
+
+        recognitionRef.current = rec;
+      }
+    }
+  }, [speechLang]);
+
+  const toggleListening = () => {
+    if (!recognitionRef.current) {
+      alert("Microphone voice input is not supported in this browser. Please try Chrome or Edge.");
+      return;
+    }
+
+    if (isListening) {
+      stopListening();
+    } else {
+      try {
+        SpeechController.stop();
+        setPlayingMsgId(null);
+        recognitionRef.current.lang = speechLang;
+        recognitionRef.current.start();
+      } catch (err) {
+        console.warn("[SpeechRecognition] start error:", err);
+      }
+    }
+  };
+
+  const stopListening = () => {
+    if (recognitionRef.current && isListening) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
+      setIsListening(false);
+    }
+  };
+
+  const toggleVoiceAssistance = () => {
+    setVoiceAssistance((prev) => {
+      const next = !prev;
+      if (!next) {
+        SpeechController.stop();
+        setPlayingMsgId(null);
+      }
+      return next;
+    });
+  };
+
+  const toggleSpeakMessage = (id: string, text: string) => {
+    if (playingMsgId === id) {
+      SpeechController.stop();
+      setPlayingMsgId(null);
+    } else {
+      SpeechController.speak(text, {
+        id,
+        onStart: () => setPlayingMsgId(id),
+        onEnd: () => setPlayingMsgId(null),
+      });
+    }
+  };
 
   const currentMessages = chatMode === "advisory" ? advisoryMessages : reportingMessages;
   const currentPrompts = chatMode === "advisory" ? ADVISORY_PROMPTS : REPORTING_PROMPTS;
@@ -177,6 +283,14 @@ export default function AIChatbot() {
           };
           setReportDraft(updatedDraft);
           botMessage.draft = updatedDraft;
+
+          // Auto-sync into sessionStorage & broadcast live custom event so open report page populates in real time
+          if (typeof window !== "undefined") {
+            sessionStorage.setItem("casepilot_chatbot_draft", JSON.stringify(updatedDraft));
+            window.dispatchEvent(
+              new CustomEvent("casepilot:apply-draft", { detail: updatedDraft })
+            );
+          }
         } else if (reportDraft) {
           botMessage.draft = reportDraft;
         }
@@ -215,12 +329,27 @@ export default function AIChatbot() {
     }
   };
 
+  const [transferredSuccess, setTransferredSuccess] = useState(false);
+
   const handleTransferToReport = () => {
     if (reportDraft) {
       sessionStorage.setItem("casepilot_chatbot_draft", JSON.stringify(reportDraft));
+      // Dispatch live custom event for any open report page to instantly populate
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(
+          new CustomEvent("casepilot:apply-draft", { detail: reportDraft })
+        );
+      }
     }
-    // Keep chat window open beside the report form for continuous victim assistance
-    router.push("/report?source=chatbot");
+    setTransferredSuccess(true);
+    setTimeout(() => setTransferredSuccess(false), 3500);
+
+    // If already on /report, smoothly scroll to form; otherwise navigate
+    if (typeof window !== "undefined" && window.location.pathname.startsWith("/report")) {
+      window.scrollTo({ top: 180, behavior: "smooth" });
+    } else {
+      router.push("/report?source=chatbot");
+    }
   };
 
   return (
@@ -283,6 +412,23 @@ export default function AIChatbot() {
             <div className="flex items-center gap-1">
               <button
                 type="button"
+                onClick={toggleVoiceAssistance}
+                title={
+                  voiceAssistance
+                    ? "Voice Guidance Active (click to mute)"
+                    : "Voice Guidance Muted (click to listen to replies)"
+                }
+                className={`p-1.5 rounded-ux transition ${
+                  voiceAssistance
+                    ? "text-emerald-400 bg-ink-800/90 hover:bg-ink-700 ring-1 ring-emerald-500/50"
+                    : "text-ink-400 hover:text-white hover:bg-ink-800"
+                }`}
+                aria-label={voiceAssistance ? "Mute voice guidance" : "Enable voice guidance"}
+              >
+                {voiceAssistance ? <Volume2 className="h-4 w-4 text-emerald-400" /> : <VolumeX className="h-4 w-4" />}
+              </button>
+              <button
+                type="button"
                 onClick={clearChat}
                 title="Reset conversation"
                 className="p-1.5 text-ink-300 hover:text-white rounded-ux hover:bg-ink-800 transition"
@@ -311,42 +457,43 @@ export default function AIChatbot() {
           {!isMinimized && (
             <>
               {/* Mode Switcher Tabs */}
-              <div className="grid grid-cols-2 border-b-2 border-ink-900 bg-ink-100 text-xs font-bold select-none">
+              <div className="flex items-center border-b border-ink-200 bg-white">
                 <button
                   type="button"
                   onClick={() => setChatMode("reporting")}
-                  className={`flex items-center justify-center gap-1.5 py-2.5 transition ${
+                  className={`flex-1 py-2 text-center text-xs font-bold transition flex items-center justify-center gap-1.5 border-b-2 ${
                     chatMode === "reporting"
-                      ? "bg-white text-ink-900 border-b-2 border-brand-600 shadow-xs"
-                      : "text-ink-600 hover:text-ink-900 hover:bg-ink-200/60"
+                      ? "border-brand-600 text-brand-700 bg-brand-50/50"
+                      : "border-transparent text-ink-500 hover:text-ink-900"
                   }`}
                 >
-                  <FileText className="h-3.5 w-3.5 text-brand-600" />
+                  <FileText className="h-3.5 w-3.5" />
                   <span>Report Incident</span>
-                  <span className="rounded-full bg-emerald-100 px-1.5 py-0.2 text-[9px] font-extrabold text-emerald-800">
+                  <span className="rounded bg-emerald-100 text-emerald-800 text-[9px] px-1 py-0.2 font-mono uppercase tracking-wider">
                     Live Intake
                   </span>
                 </button>
+
                 <button
                   type="button"
                   onClick={() => setChatMode("advisory")}
-                  className={`flex items-center justify-center gap-1.5 py-2.5 transition ${
+                  className={`flex-1 py-2 text-center text-xs font-bold transition flex items-center justify-center gap-1.5 border-b-2 ${
                     chatMode === "advisory"
-                      ? "bg-white text-ink-900 border-b-2 border-brand-600 shadow-xs"
-                      : "text-ink-600 hover:text-ink-900 hover:bg-ink-200/60"
+                      ? "border-brand-600 text-brand-700 bg-brand-50/50"
+                      : "border-transparent text-ink-500 hover:text-ink-900"
                   }`}
                 >
-                  <Bot className="h-3.5 w-3.5 text-brand-600" />
+                  <Bot className="h-3.5 w-3.5" />
                   <span>Ask & Guidance</span>
                 </button>
               </div>
 
-              {/* Emergency Banner Strip (In Advisory Mode) */}
+              {/* Emergency Banner */}
               {chatMode === "advisory" && (
-                <div className="bg-warning-50 border-b border-warning-200 px-3.5 py-1.5 flex items-center justify-between text-xs text-ink-900">
-                  <div className="flex items-center gap-1.5">
-                    <AlertTriangle className="h-3.5 w-3.5 text-warning-700 shrink-0" />
-                    <span className="font-semibold text-warning-900 text-[11px]">
+                <div className="bg-danger-50 border-b border-danger-200 px-3.5 py-2 flex items-center justify-between gap-2 text-danger-900">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-danger-600 shrink-0" />
+                    <span className="text-[11px] font-semibold">
                       Active Emergency? Call 1930 directly.
                     </span>
                   </div>
@@ -374,13 +521,14 @@ export default function AIChatbot() {
                       }`}
                     >
                       {/* Acknowledgement and guidance prose */}
-                      <div>{msg.content}</div>
+                      <FormattedMessageContent content={msg.content} />
 
                       {/* STATUTORY FIELD INTAKE TABLE (Rendered right after the acknowledgement text) */}
                       {chatMode === "reporting" && msg.role === "assistant" && msg.draft && (
                         <IntakeChecklistTable
                           draft={msg.draft}
                           onTransfer={handleTransferToReport}
+                          transferredSuccess={transferredSuccess}
                         />
                       )}
                     </div>
@@ -391,6 +539,31 @@ export default function AIChatbot() {
                         <span className="text-[9px] font-bold uppercase tracking-wider text-ink-500 bg-ink-200/60 px-1 py-0.2 rounded-ux-sm">
                           {msg.source === "openai" ? "GPT-4o-mini" : "Rule Engine"}
                         </span>
+                      )}
+
+                      {msg.role === "assistant" && (
+                        <button
+                          type="button"
+                          onClick={() => toggleSpeakMessage(msg.id, msg.content)}
+                          className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded transition ${
+                            playingMsgId === msg.id
+                              ? "bg-brand-50 text-brand-700 border border-brand-200 shadow-2xs"
+                              : "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100"
+                          }`}
+                          title={playingMsgId === msg.id ? "Stop voice" : "Listen in calm AI voice"}
+                        >
+                          {playingMsgId === msg.id ? (
+                            <>
+                              <Square className="h-2.5 w-2.5 text-brand-600 fill-brand-600 animate-pulse" />
+                              <span>Stop</span>
+                            </>
+                          ) : (
+                            <>
+                              <Volume2 className="h-2.5 w-2.5 text-zinc-500" />
+                              <span>Listen</span>
+                            </>
+                          )}
+                        </button>
                       )}
                     </div>
                   </div>
@@ -448,30 +621,82 @@ export default function AIChatbot() {
                 </div>
               </div>
 
+              {/* Voice-to-Text Listening Indicator */}
+              {isListening && (
+                <div className="bg-red-50 border-t border-red-200 px-3 py-1.5 flex items-center justify-between text-xs text-red-700 animate-pulse select-none">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-red-600 animate-ping" />
+                    <span className="font-semibold text-[11px]">
+                      Listening in {speechLang === "hi-IN" ? "हिन्दी / Hinglish" : "English"}... Speak clearly
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={stopListening}
+                    className="text-[10px] font-bold text-red-800 bg-red-100 hover:bg-red-200 px-2 py-0.5 rounded transition"
+                  >
+                    Done Speaking
+                  </button>
+                </div>
+              )}
+
               {/* Input Bar */}
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
+                  if (isListening) stopListening();
                   handleSend();
                 }}
-                className="border-t-2 border-ink-900 bg-white p-2.5 flex items-center gap-2"
+                className="border-t-2 border-ink-900 bg-white p-2.5 flex items-center gap-1.5"
               >
+                {/* Speech Input Language Switcher */}
+                <button
+                  type="button"
+                  onClick={() => setSpeechLang((prev) => (prev === "hi-IN" ? "en-IN" : "hi-IN"))}
+                  title={`Speech input language: ${speechLang === "hi-IN" ? "Hindi / Hinglish" : "English"}`}
+                  className="rounded px-1.5 py-1 text-[10px] font-bold text-zinc-600 bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 shrink-0 transition"
+                >
+                  {speechLang === "hi-IN" ? "हिन्दी" : "EN"}
+                </button>
+
+                {/* Voice-to-Text Microphone Button */}
+                <button
+                  type="button"
+                  onClick={toggleListening}
+                  title={isListening ? "Click to stop recording" : "Click to speak to CasePilot"}
+                  className={`rounded-ux p-2 transition shrink-0 ${
+                    isListening
+                      ? "bg-red-600 text-white animate-pulse shadow-md"
+                      : "bg-ink-100 text-ink-700 hover:bg-ink-200 hover:text-ink-900"
+                  }`}
+                  aria-label={isListening ? "Stop voice input" : "Start voice input"}
+                >
+                  {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
+                </button>
+
                 <input
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder={
-                    chatMode === "reporting"
-                      ? "Describe what happened, UTR, amount, or suspect info..."
-                      : "Describe your question or situation..."
+                    isListening
+                      ? "Listening to your voice..."
+                      : chatMode === "reporting"
+                      ? "Describe what happened, or tap mic to speak..."
+                      : "Ask question, or tap mic to speak..."
                   }
                   disabled={loading}
-                  className="flex-1 rounded-ux border border-ink-300 px-3 py-2 text-xs text-ink-900 placeholder:text-ink-400 focus:border-ink-900 focus:outline-none"
+                  className={`flex-1 rounded-ux border px-3 py-2 text-xs text-ink-900 placeholder:text-ink-400 focus:outline-none transition ${
+                    isListening
+                      ? "border-red-400 bg-red-50/20"
+                      : "border-ink-300 focus:border-ink-900"
+                  }`}
                 />
+
                 <button
                   type="submit"
                   disabled={loading || !input.trim()}
-                  className="rounded-ux bg-ink-900 p-2 text-white hover:bg-ink-800 disabled:opacity-50 transition"
+                  className="rounded-ux bg-ink-900 p-2 text-white hover:bg-ink-800 disabled:opacity-50 transition shrink-0"
                   aria-label="Send message"
                 >
                   <Send className="h-4 w-4" />
@@ -486,6 +711,65 @@ export default function AIChatbot() {
 }
 
 /**
+ * Renders bold tags and bullets smoothly instead of raw markdown syntax
+ */
+function FormattedMessageContent({ content }: { content: string }) {
+  const lines = content.split("\n");
+
+  const formatInline = (text: string) => {
+    const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith("**") && part.endsWith("**")) {
+        return (
+          <strong key={i} className="font-semibold text-zinc-900">
+            {part.slice(2, -2)}
+          </strong>
+        );
+      }
+      if (part.startsWith("*") && part.endsWith("*")) {
+        return (
+          <em key={i} className="text-zinc-600 italic">
+            {part.slice(1, -1)}
+          </em>
+        );
+      }
+      return part;
+    });
+  };
+
+  return (
+    <div className="space-y-1.5 text-xs leading-relaxed">
+      {lines.map((line, idx) => {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          return <div key={idx} className="h-1" />;
+        }
+        if (trimmed.startsWith("• ") || trimmed.startsWith("- ")) {
+          return (
+            <div key={idx} className="flex items-start gap-1.5 pl-1 my-0.5">
+              <span className="text-emerald-600 font-bold shrink-0 mt-0.5">•</span>
+              <div className="min-w-0 text-zinc-800">{formatInline(trimmed.slice(2))}</div>
+            </div>
+          );
+        }
+        const numberedMatch = trimmed.match(/^(\d+)\.\s+(.*)$/);
+        if (numberedMatch) {
+          return (
+            <div key={idx} className="flex items-start gap-1.5 pl-1 my-1">
+              <span className="font-mono text-zinc-500 font-bold shrink-0 text-[11px] mt-0.5">
+                {numberedMatch[1]}.
+              </span>
+              <div className="min-w-0 text-zinc-800">{formatInline(numberedMatch[2])}</div>
+            </div>
+          );
+        }
+        return <div key={idx}>{formatInline(line)}</div>;
+      })}
+    </div>
+  );
+}
+
+/**
  * Clean, minimal ChatGPT-style statutory checklist table rendered directly inside
  * the assistant message bubble in Reporting mode.
  * Shows all 11 required fields with minimal green checkmarks.
@@ -493,64 +777,77 @@ export default function AIChatbot() {
 function IntakeChecklistTable({
   draft,
   onTransfer,
+  transferredSuccess,
 }: {
   draft: ChatReportDraft;
   onTransfer: () => void;
+  transferredSuccess?: boolean;
 }) {
   const checklistItems = [
     {
       id: "cat",
       name: "Crime Classification",
+      desc: "Determines statutory sections under BNS & IT Act",
       value: draft.categoryLabel || null,
     },
     {
       id: "amt",
       name: "Reported Loss",
+      desc: "Mandatory under BNSS 503 for FIR & fund restitution",
       value: draft.amount ? `₹${Number(draft.amount).toLocaleString("en-IN")}` : null,
     },
     {
       id: "bank",
       name: "Your Bank / App",
+      desc: "Needed for home bank dispute claim & chargeback",
       value: draft.bankName || null,
     },
     {
       id: "debit",
       name: "Your Account / Mobile",
+      desc: "Required for RBI account owner authentication",
       value: draft.bankAccount || null,
     },
     {
       id: "mode",
       name: "Payment Mode",
+      desc: "Identifies payment channel & reversal route",
       value: draft.paymentMode || null,
     },
     {
       id: "utr",
       name: "12-Digit Transaction UTR",
+      desc: "Critical for 1930 / CFCFRMS instant bank freeze",
       value: draft.utrNumber || null,
     },
     {
       id: "acc",
       name: "Suspect Account / UPI",
+      desc: "Required for Section 94 BNSS debit-freeze notice",
       value: draft.suspectAccount || null,
     },
     {
       id: "phone",
       name: "Suspect Phone / Contact",
+      desc: "Required for Section 91/94 BNSS CDR telecom tracing",
       value: draft.suspectPhone || null,
     },
     {
       id: "name",
       name: "Suspect Name / Alias",
+      desc: "Documents criminal impersonation (BNS 319 / 318)",
       value: draft.suspectName || null,
     },
     {
       id: "ch",
       name: "Platform / Channel",
+      desc: "Preserves digital forensics under BSA Section 63",
       value: draft.channel || null,
     },
     {
       id: "date",
       name: "Incident Date / Time",
+      desc: "Establishes 120-min Golden Hour priority & RBI window",
       value: draft.incidentDate || null,
     },
   ];
@@ -601,13 +898,20 @@ function IntakeChecklistTable({
                     ·
                   </span>
                 )}
-                <span
-                  className={`text-[11px] truncate ${
-                    isFilled ? "text-zinc-700 font-medium" : "text-zinc-400"
-                  }`}
-                >
-                  {item.name}
-                </span>
+                <div className="flex flex-col min-w-0">
+                  <span
+                    className={`text-[11px] truncate ${
+                      isFilled ? "text-zinc-700 font-medium" : "text-zinc-500"
+                    }`}
+                  >
+                    {item.name}
+                  </span>
+                  {!isFilled && (
+                    <span className="text-[9.5px] text-zinc-400 truncate leading-tight">
+                      {item.desc}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="shrink-0 text-right">
@@ -634,10 +938,23 @@ function IntakeChecklistTable({
         <button
           type="button"
           onClick={onTransfer}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-zinc-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-zinc-800 transition shadow-2xs shrink-0"
+          className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold text-white transition shadow-2xs shrink-0 ${
+            transferredSuccess
+              ? "bg-emerald-600 hover:bg-emerald-700"
+              : "bg-zinc-900 hover:bg-zinc-800"
+          }`}
         >
-          <span>Transfer to Form</span>
-          <ArrowRight className="h-3.5 w-3.5" />
+          {transferredSuccess ? (
+            <>
+              <Check className="h-3.5 w-3.5 stroke-[2.5]" />
+              <span>Transferred to Form!</span>
+            </>
+          ) : (
+            <>
+              <span>Transfer to Form</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </>
+          )}
         </button>
       </div>
     </div>
