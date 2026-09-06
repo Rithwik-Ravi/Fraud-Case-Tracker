@@ -46,8 +46,9 @@ export async function POST(req: NextRequest) {
     const { default: OpenAI } = await import("openai");
     const openai = new OpenAI({ apiKey, timeout: 12000 });
 
+    const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
     const response = await openai.chat.completions.create({
-      model: "gpt-4o",
+      model,
       max_tokens: 200,
       messages: [
         {

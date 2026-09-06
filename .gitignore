@@ -59,6 +59,12 @@ next-env.d.ts
 # Vercel CLI
 .vercel
 
-# Ignore apps directory
-apps/
+# Python AI Engine environments and temporary caches
+apps/**/venv/
+apps/**/__pycache__/
+apps/**/.pytest_cache/
+*.pyc
+*.pyo
+*.pyd
+.Python
 

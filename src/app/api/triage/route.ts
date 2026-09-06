@@ -21,6 +21,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
+  // ── Try Python AI Engine path if running ──────────────────────────────────
+  const aiEngineUrl = process.env.AI_ENGINE_URL || "http://127.0.0.1:8000";
+  if (narrative.trim().length > 5) {
+    try {
+      const aiRes = await fetch(`${aiEngineUrl}/api/ai/triage`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ narrative }),
+        signal: AbortSignal.timeout(4000),
+      });
+      if (aiRes.ok) {
+        const aiData: TriageResult = await aiRes.json();
+        return NextResponse.json(aiData);
+      }
+    } catch {
+      // AI Engine offline or timed out; continue to Next.js OpenAI path
+    }
+  }
+
   // ── Try OpenAI path ────────────────────────────────────────────────────────
   const apiKey = process.env.OPENAI_API_KEY;
   if (apiKey && narrative.trim().length > 10) {
