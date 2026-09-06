@@ -15,6 +15,9 @@ import {
   FileText,
   ArrowRight,
   Sparkles,
+  CheckCircle2,
+  Check,
+  Clock,
 } from "lucide-react";
 import { useAssist } from "@/context/AssistContext";
 
@@ -24,6 +27,7 @@ interface Message {
   content: string;
   timestamp: string;
   source?: "openai" | "deterministic";
+  draft?: ChatReportDraft | null;
 }
 
 export interface ChatReportDraft {
@@ -73,9 +77,11 @@ const REPORTING_PROMPTS = [
 
 export default function AIChatbot() {
   const router = useRouter();
-  const [isOpen, setIsOpen] = useState(false);
+
+  // Keep chat window open at all times by default as requested
+  const [isOpen, setIsOpen] = useState(true);
   const [isMinimized, setIsMinimized] = useState(false);
-  const [chatMode, setChatMode] = useState<"advisory" | "reporting">("advisory");
+  const [chatMode, setChatMode] = useState<"advisory" | "reporting">("reporting");
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -157,14 +163,21 @@ export default function AIChatbot() {
       if (chatMode === "advisory") {
         setAdvisoryMessages((prev) => [...prev, botMessage]);
       } else {
-        setReportingMessages((prev) => [...prev, botMessage]);
+        // Update cumulative report draft
+        let updatedDraft: ChatReportDraft | null = null;
         if (data.draft) {
-          setReportDraft((prev) => ({
-            ...(prev || {}),
+          updatedDraft = {
+            ...(reportDraft || {}),
             ...data.draft,
-            narrative: data.draft.narrative || prev?.narrative || query,
-          }));
+            narrative: data.draft.narrative || reportDraft?.narrative || query,
+          };
+          setReportDraft(updatedDraft);
+          botMessage.draft = updatedDraft;
+        } else if (reportDraft) {
+          botMessage.draft = reportDraft;
         }
+
+        setReportingMessages((prev) => [...prev, botMessage]);
       }
 
       if (assist && data.reply) {
@@ -202,13 +215,13 @@ export default function AIChatbot() {
     if (reportDraft) {
       sessionStorage.setItem("casepilot_chatbot_draft", JSON.stringify(reportDraft));
     }
-    setIsOpen(false);
+    // Keep chat window open beside the report form for continuous victim assistance
     router.push("/report?source=chatbot");
   };
 
   return (
     <>
-      {/* Floating Trigger Launcher Button */}
+      {/* Floating Trigger Launcher Button (Fallback if closed) */}
       {!isOpen && (
         <div className="fixed bottom-5 right-5 z-40">
           <button
@@ -234,11 +247,11 @@ export default function AIChatbot() {
         </div>
       )}
 
-      {/* Chat Drawer Window */}
+      {/* Chat Drawer Window (Kept open at all times) */}
       {isOpen && (
         <div
-          className={`fixed bottom-4 right-4 z-50 w-[calc(100vw-2rem)] max-w-md border-2 border-ink-900 bg-white shadow-2xl transition-all ${
-            isMinimized ? "h-14" : "h-[620px] max-h-[88vh]"
+          className={`fixed bottom-4 right-4 z-50 w-[calc(100vw-2rem)] sm:w-[440px] max-w-lg border-2 border-ink-900 bg-white shadow-2xl transition-all ${
+            isMinimized ? "h-14" : "h-[640px] max-h-[90vh]"
           } flex flex-col`}
           role="dialog"
           aria-label="CasePilot AI Cyber Assistant"
@@ -258,7 +271,7 @@ export default function AIChatbot() {
                     ? "Active: OpenAI gpt-4o-mini"
                     : engineStatus === "offline"
                     ? "Active: Offline Engine"
-                    : "Incident Triage & Intake"}
+                    : "Live Incident Triage Desk"}
                 </span>
               </div>
             </div>
@@ -282,8 +295,8 @@ export default function AIChatbot() {
               </button>
               <button
                 type="button"
-                onClick={() => setIsOpen(false)}
-                title="Close chat"
+                onClick={() => setIsMinimized(true)}
+                title="Minimize assistant"
                 className="p-1.5 text-ink-300 hover:text-white rounded-ux hover:bg-ink-800 transition"
               >
                 <X className="h-4 w-4" />
@@ -297,6 +310,21 @@ export default function AIChatbot() {
               <div className="grid grid-cols-2 border-b-2 border-ink-900 bg-ink-100 text-xs font-bold select-none">
                 <button
                   type="button"
+                  onClick={() => setChatMode("reporting")}
+                  className={`flex items-center justify-center gap-1.5 py-2.5 transition ${
+                    chatMode === "reporting"
+                      ? "bg-white text-ink-900 border-b-2 border-brand-600 shadow-xs"
+                      : "text-ink-600 hover:text-ink-900 hover:bg-ink-200/60"
+                  }`}
+                >
+                  <FileText className="h-3.5 w-3.5 text-brand-600" />
+                  <span>Report Incident</span>
+                  <span className="rounded-full bg-emerald-100 px-1.5 py-0.2 text-[9px] font-extrabold text-emerald-800">
+                    Live Intake
+                  </span>
+                </button>
+                <button
+                  type="button"
                   onClick={() => setChatMode("advisory")}
                   className={`flex items-center justify-center gap-1.5 py-2.5 transition ${
                     chatMode === "advisory"
@@ -307,21 +335,6 @@ export default function AIChatbot() {
                   <Bot className="h-3.5 w-3.5 text-brand-600" />
                   <span>Ask & Guidance</span>
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setChatMode("reporting")}
-                  className={`flex items-center justify-center gap-1.5 py-2.5 transition ${
-                    chatMode === "reporting"
-                      ? "bg-white text-ink-900 border-b-2 border-brand-600 shadow-xs"
-                      : "text-ink-600 hover:text-ink-900 hover:bg-ink-200/60"
-                  }`}
-                >
-                  <FileText className="h-3.5 w-3.5 text-brand-600" />
-                  <span>Report Incident</span>
-                  <span className="rounded-full bg-brand-100 px-1.5 py-0.2 text-[9px] font-extrabold text-brand-800">
-                    Guided
-                  </span>
-                </button>
               </div>
 
               {/* Emergency Banner Strip (In Advisory Mode) */}
@@ -329,7 +342,9 @@ export default function AIChatbot() {
                 <div className="bg-warning-50 border-b border-warning-200 px-3.5 py-1.5 flex items-center justify-between text-xs text-ink-900">
                   <div className="flex items-center gap-1.5">
                     <AlertTriangle className="h-3.5 w-3.5 text-warning-700 shrink-0" />
-                    <span className="font-semibold text-warning-900 text-[11px]">Active Emergency? Call 1930 directly.</span>
+                    <span className="font-semibold text-warning-900 text-[11px]">
+                      Active Emergency? Call 1930 directly.
+                    </span>
                   </div>
                   <a
                     href="tel:1930"
@@ -341,21 +356,31 @@ export default function AIChatbot() {
               )}
 
               {/* Message List */}
-              <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-ink-50/50">
+              <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5 bg-ink-50/50">
                 {currentMessages.map((msg) => (
                   <div
                     key={msg.id}
                     className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
                   >
                     <div
-                      className={`max-w-[88%] rounded-ux p-3 text-xs leading-relaxed whitespace-pre-wrap ${
+                      className={`max-w-[94%] rounded-ux p-3 text-xs leading-relaxed whitespace-pre-wrap ${
                         msg.role === "user"
                           ? "bg-ink-900 text-white font-medium"
                           : "border border-ink-300 bg-white text-ink-900 shadow-2xs"
                       }`}
                     >
-                      {msg.content}
+                      {/* Acknowledgement and guidance prose */}
+                      <div>{msg.content}</div>
+
+                      {/* STATUTORY FIELD INTAKE TABLE (Rendered right after the acknowledgement text) */}
+                      {chatMode === "reporting" && msg.role === "assistant" && msg.draft && (
+                        <IntakeChecklistTable
+                          draft={msg.draft}
+                          onTransfer={handleTransferToReport}
+                        />
+                      )}
                     </div>
+
                     <div className="flex items-center gap-2 mt-1 px-1">
                       <span className="text-[10px] text-ink-400">{msg.timestamp}</span>
                       {msg.source && (
@@ -372,7 +397,7 @@ export default function AIChatbot() {
                     <span className="h-2 w-2 rounded-full bg-brand-600 animate-pulse" />
                     <span>
                       {chatMode === "reporting"
-                        ? "Compiling incident draft..."
+                        ? "Verifying statutory checklist..."
                         : "Analyzing statutory guidance..."}
                     </span>
                   </div>
@@ -380,68 +405,11 @@ export default function AIChatbot() {
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* LIVE INCIDENT DRAFT WIDGET (In Reporting Mode) */}
-              {chatMode === "reporting" && reportDraft && (reportDraft.amount || reportDraft.bankName || reportDraft.utrNumber || reportDraft.suspectAccount || reportDraft.suspectPhone || reportDraft.categoryLabel) && (
-                <div className="border-t-2 border-brand-300 bg-brand-50/80 p-3 text-xs">
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-1.5 font-bold text-brand-900">
-                      <FileText className="h-3.5 w-3.5 text-brand-600" />
-                      <span>Live Incident Draft</span>
-                    </div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-brand-700 bg-brand-200/70 px-1.5 py-0.2 rounded-ux">
-                      Ready to Transfer
-                    </span>
-                  </div>
-
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    {reportDraft.categoryLabel && (
-                      <span className="rounded-ux bg-white border border-brand-200 px-2 py-0.5 text-[11px] font-medium text-ink-800">
-                        {reportDraft.categoryLabel}
-                      </span>
-                    )}
-                    {reportDraft.amount && (
-                      <span className="rounded-ux bg-white border border-brand-200 px-2 py-0.5 text-[11px] font-bold text-danger-700">
-                        ₹{Number(reportDraft.amount).toLocaleString("en-IN")}
-                      </span>
-                    )}
-                    {reportDraft.bankName && (
-                      <span className="rounded-ux bg-white border border-brand-200 px-2 py-0.5 text-[11px] font-medium text-ink-800">
-                        Bank: {reportDraft.bankName}
-                      </span>
-                    )}
-                    {reportDraft.utrNumber && (
-                      <span className="rounded-ux bg-white border border-brand-200 px-2 py-0.5 text-[11px] font-mono text-ink-800">
-                        UTR: {reportDraft.utrNumber}
-                      </span>
-                    )}
-                    {reportDraft.suspectAccount && (
-                      <span className="rounded-ux bg-white border border-brand-200 px-2 py-0.5 text-[11px] font-mono text-ink-800">
-                        UPI: {reportDraft.suspectAccount}
-                      </span>
-                    )}
-                    {reportDraft.suspectPhone && (
-                      <span className="rounded-ux bg-white border border-brand-200 px-2 py-0.5 text-[11px] font-medium text-ink-800">
-                        📞 {reportDraft.suspectPhone}
-                      </span>
-                    )}
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={handleTransferToReport}
-                    className="w-full inline-flex items-center justify-center gap-2 rounded-ux bg-brand-600 px-3 py-2 text-xs font-bold text-white hover:bg-brand-700 transition shadow-xs"
-                  >
-                    <span>Transfer to Official Report Form</span>
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              )}
-
               {/* Quick Prompt Suggestion Pills */}
               {currentMessages.length <= 2 && (
                 <div className="border-t border-ink-200 bg-white p-2.5 space-y-1.5">
                   <span className="block text-[11px] font-bold uppercase tracking-wider text-ink-500">
-                    {chatMode === "advisory" ? "Common Emergency Questions" : "Common Incident Types"}
+                    {chatMode === "advisory" ? "Common Emergency Questions" : "Common Incident Scenarios"}
                   </span>
                   <div className="flex flex-wrap gap-1.5">
                     {currentPrompts.map((prompt, i) => (
@@ -460,18 +428,18 @@ export default function AIChatbot() {
 
               {/* Quick Link Navigation Actions */}
               <div className="border-t border-ink-200 bg-ink-50 px-3 py-1.5 flex items-center justify-between text-[11px] text-ink-600">
-                <span>Direct navigation:</span>
+                <span>Quick routing:</span>
                 <div className="flex items-center gap-2 font-semibold">
                   <Link href="/digital-arrest" className="text-danger-700 hover:underline">
                     Digital Arrest
                   </Link>
                   <span aria-hidden="true" className="text-ink-300">/</span>
                   <Link href="/report?urgency=golden-hour" className="text-warning-700 hover:underline">
-                    Golden Hour Freeze
+                    Freeze
                   </Link>
                   <span aria-hidden="true" className="text-ink-300">/</span>
                   <Link href="/track" className="text-brand-700 hover:underline">
-                    Track SLA
+                    Track
                   </Link>
                 </div>
               </div>
@@ -490,7 +458,7 @@ export default function AIChatbot() {
                   onChange={(e) => setInput(e.target.value)}
                   placeholder={
                     chatMode === "reporting"
-                      ? "Describe what happened, loss amount, bank..."
+                      ? "Describe what happened, UTR, amount, or suspect info..."
                       : "Describe your question or situation..."
                   }
                   disabled={loading}
@@ -510,5 +478,163 @@ export default function AIChatbot() {
         </div>
       )}
     </>
+  );
+}
+
+/**
+ * Clean, high-impact statutory checklist table rendered directly inside
+ * the assistant message bubble in Reporting mode.
+ * Shows vivid green ticks (✅) next to filled lines and pending hints next to missing lines.
+ */
+function IntakeChecklistTable({
+  draft,
+  onTransfer,
+}: {
+  draft: ChatReportDraft;
+  onTransfer: () => void;
+}) {
+  const checklistItems = [
+    {
+      id: "cat",
+      name: "Crime Classification",
+      value: draft.categoryLabel || null,
+      missingNote: "AI will categorize from narrative",
+    },
+    {
+      id: "amt",
+      name: "Reported Loss Amount",
+      value: draft.amount ? `₹${Number(draft.amount).toLocaleString("en-IN")}` : null,
+      missingNote: "Total ₹ loss (if money moved)",
+    },
+    {
+      id: "bank",
+      name: "Complainant Bank / App",
+      value: draft.bankName || null,
+      missingNote: "e.g. SBI, HDFC, GPay, PhonePe",
+    },
+    {
+      id: "utr",
+      name: "12-Digit Transaction UTR",
+      value: draft.utrNumber || null,
+      missingNote: "From bank SMS / debit receipt",
+    },
+    {
+      id: "acc",
+      name: "Suspect Account / UPI",
+      value: draft.suspectAccount || null,
+      missingNote: "Fraudster UPI ID or beneficiary A/C",
+    },
+    {
+      id: "phone",
+      name: "Suspect Mobile / Contact",
+      value: draft.suspectPhone || null,
+      missingNote: "Caller / WhatsApp mobile number",
+    },
+    {
+      id: "ch",
+      name: "Platform / Channel",
+      value: draft.channel || null,
+      missingNote: "WhatsApp, Telegram, Phone call, etc.",
+    },
+  ];
+
+  const filledItems = checklistItems.filter((i) => Boolean(i.value));
+  const countFilled = filledItems.length;
+  const countTotal = checklistItems.length;
+  const progressPercent = Math.round((countFilled / countTotal) * 100);
+
+  return (
+    <div className="mt-3.5 rounded-ux border-2 border-ink-900 bg-white text-ink-900 overflow-hidden shadow-sm not-prose">
+      {/* Table Header Bar */}
+      <div className="flex items-center justify-between border-b border-ink-200 bg-ink-900 px-3 py-2 text-white">
+        <div className="flex items-center gap-2">
+          <div className="grid h-4 w-4 place-items-center rounded-full bg-emerald-500 text-ink-900 font-black text-[10px]">
+            ✓
+          </div>
+          <span className="font-extrabold text-[11px] tracking-wide uppercase">
+            Statutory Field Intake Progress
+          </span>
+        </div>
+        <span className="rounded-ux bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 text-[10px] font-mono font-bold">
+          {countFilled}/{countTotal} Captured ({progressPercent}%)
+        </span>
+      </div>
+
+      {/* Checklist Table */}
+      <div className="divide-y divide-ink-100 text-[11px]">
+        {checklistItems.map((item) => {
+          const isFilled = Boolean(item.value);
+          return (
+            <div
+              key={item.id}
+              className={`flex items-center justify-between px-3 py-2 transition ${
+                isFilled ? "bg-emerald-50/50" : "bg-white"
+              }`}
+            >
+              <div className="flex items-start gap-2.5 min-w-0 pr-2">
+                {isFilled ? (
+                  <span
+                    className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-emerald-600 text-white mt-0.5 shadow-2xs"
+                    title="Filled"
+                  >
+                    <Check className="h-2.5 w-2.5 stroke-[3]" />
+                  </span>
+                ) : (
+                  <span
+                    className="grid h-4 w-4 shrink-0 place-items-center rounded-full bg-amber-100 text-amber-600 mt-0.5"
+                    title="Required / Pending"
+                  >
+                    <Clock className="h-2.5 w-2.5" />
+                  </span>
+                )}
+                <div className="min-w-0">
+                  <span className={`block font-bold ${isFilled ? "text-ink-900" : "text-ink-700"}`}>
+                    {item.name}
+                  </span>
+                  {isFilled ? (
+                    <span className="block truncate font-mono text-[10px] font-semibold text-emerald-800">
+                      {item.value}
+                    </span>
+                  ) : (
+                    <span className="block truncate text-[10px] text-ink-400">
+                      {item.missingNote}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="shrink-0 pl-1">
+                {isFilled ? (
+                  <span className="inline-flex items-center gap-1 rounded-ux bg-emerald-100 border border-emerald-300 px-1.5 py-0.5 text-[9px] font-bold text-emerald-800">
+                    <span>Filled</span>
+                    <span>✅</span>
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 rounded-ux bg-amber-50 border border-amber-200 px-1.5 py-0.5 text-[9px] font-medium text-amber-700">
+                    <span>Pending</span>
+                    <span>⏳</span>
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Table Footer Action */}
+      <div className="border-t border-ink-200 bg-ink-50 px-3 py-2 flex items-center justify-between gap-2">
+        <span className="text-[10px] text-ink-600 font-semibold">
+          {countFilled >= 2 ? "Ready to auto-fill report:" : "Provide missing fields above:"}
+        </span>
+        <button
+          type="button"
+          onClick={onTransfer}
+          className="inline-flex items-center gap-1.5 rounded-ux bg-brand-600 px-3 py-1.5 text-[11px] font-extrabold text-white hover:bg-brand-700 transition shadow-xs"
+        >
+          <span>Transfer to Form</span>
+          <ArrowRight className="h-3.5 w-3.5" />
+        </button>
+      </div>
+    </div>
   );
 }
