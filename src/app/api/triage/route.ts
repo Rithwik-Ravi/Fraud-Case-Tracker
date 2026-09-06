@@ -34,6 +34,13 @@ export async function POST(req: NextRequest) {
       });
       if (aiRes.ok) {
         const aiData: TriageResult = await aiRes.json();
+        const matchedCat = CATEGORIES.find((c) => c.id === aiData.categoryId) || CATEGORIES[0];
+        aiData.section = aiData.section || matchedCat.section;
+        aiData.subCategory = aiData.subCategory || matchedCat.subCategory;
+        aiData.priorityDeskType = aiData.priorityDeskType || matchedCat.priorityDeskType;
+        aiData.statutoryCitations = aiData.statutoryCitations || matchedCat.statutoryCitations;
+        aiData.evidenceChecklist = aiData.evidenceChecklist || matchedCat.evidenceChecklist;
+
         // Augment extractedFields with deterministic regex for aliases (Hindi/English), bank names, and dates
         const fallbackFields = classifyNarrative(narrative).extractedFields || {};
         aiData.extractedFields = {
@@ -79,30 +86,41 @@ async function classifyWithOpenAI(narrative: string, apiKey: string): Promise<Tr
   const openai = new OpenAI({ apiKey, timeout: 8000 });
 
   const categoryList = CATEGORIES.map(
-    (c) => `  - id="${c.id}" | label="${c.label}" | parent="${c.parent}" | urgency="${c.defaultUrgency}"`
+    (c) => `  - id="${c.id}" | section="${c.section}" | parent="${c.parent}" | label="${c.label}" | subCategory="${c.subCategory}" | urgency="${c.defaultUrgency}"`
   ).join("\n");
 
   const systemPrompt = `You are a cybercrime classification and entity extraction assistant for India's NCRP (National Cyber Crime Reporting Portal).
 Your job is to:
-1. Classify a victim's narrative into one of the official 21 categories below.
-2. Extract all concrete factual entities (bank name, amount, 12-digit UTR, suspect accounts, handles, contact numbers, channel, platform) into structured form boxes to auto-fill the complaint report for the victim.
+1. Classify a victim's narrative into EXACTLY ONE of the official NCRP categories across the 3 pillars:
+   - Women/Children Related Crime (WOMEN_CHILDREN)
+   - Financial Fraud (FINANCIAL)
+   - Other Cyber Crime (OTHER)
+2. Extract all concrete factual entities into structured fields to auto-fill the complaint report.
+   - Common fields: suspectName, suspectPhone, suspectEmail, suspectHandle, suspectWebsite, channel, incidentDate, delayReason.
+   - Financial fraud: bankName, bankAccount, suspectAccount (UPI/A/C), amount (INR), utrNumber (12-digit), paymentMode.
+   - Cryptocurrency: cryptoNetwork (BTC, ETH, TRON, SOL), victimWallet, suspectWallet, transactionHash (0x...), cryptoExchange.
+   - Ransomware / Hacking: encryptedExtension (e.g. .locked), ransomNoteFile, ransomDemanded, ransomWalletAddress, targetDomain, serverIp, defacerHandle.
+   - Social media: imposterUrl, genuineUrl, socialPlatform, defamationType.
+   - Mobile: maliciousApkName (.apk), deviceType, telecomOperator.
+   - Women/Children: harassmentMedium (Video call, DM), threatenedContent, extortionDemand.
 
 CATEGORIES:
 ${categoryList}
 
 Rules:
 1. Reply ONLY with valid JSON matching the schema. No prose, no markdown.
-2. If the narrative matches "digital_arrest" signals (CBI, ED, police calling about arrest, digital arrest, parcel contraband), always use "digital_arrest" and set "isDigitalArrest": true.
+2. If narrative matches "digital_arrest" signals (CBI, ED, police calling about arrest, digital arrest, parcel contraband), always classify as "digital_arrest" and set "isDigitalArrest": true.
 3. Extract loss amount in INR if mentioned; set to null if absent.
-4. Extract 12-digit UTR, bank name (e.g. SBI, HDFC), suspect UPI/account (e.g. fraud@ybl), suspect mobile, suspect handle (@...), channel (WhatsApp, Telegram, Phone Call, SMS, APK, etc.).
-5. Write "reasoning" as one plain-English sentence.
-6. Set "moneyMoved" to true only if the victim explicitly says money was taken/sent/deducted/lost.
+4. Set "moneyMoved": true only if victim explicitly confirms money was debited/sent/lost.
+5. Write "reasoning" as one concise plain-English sentence.
 
 Schema:
 {
   "categoryId": string,
   "categoryLabel": string,
-  "parentCategory": string,
+  "section": "WOMEN_CHILDREN" | "FINANCIAL" | "OTHER",
+  "parentCategory": "Women/Children" | "Financial Fraud" | "Other Cyber Crime",
+  "subCategory": string,
   "isFinancialFraud": boolean,
   "urgency": "standard" | "urgent" | "golden-hour",
   "detectedAmount": number | null,
@@ -115,14 +133,34 @@ Schema:
     "suspectAccount": string | null,
     "suspectName": string | null,
     "suspectPhone": string | null,
+    "suspectEmail": string | null,
     "suspectHandle": string | null,
     "suspectWebsite": string | null,
     "amount": number | null,
     "utrNumber": string | null,
-    "paymentMode": "UPI" | "Net Banking" | "Credit/Debit Card" | "AEPS" | "Wallet" | "Other" | null,
-    "channel": "WhatsApp" | "Telegram" | "Phone Call" | "SMS" | "Instagram" | "Fake Website" | "Malicious APK" | "Email" | "Other" | null,
+    "paymentMode": string | null,
+    "channel": string | null,
     "incidentDate": string | null,
-    "delayReason": string | null
+    "delayReason": string | null,
+    "cryptoNetwork": string | null,
+    "victimWallet": string | null,
+    "suspectWallet": string | null,
+    "transactionHash": string | null,
+    "cryptoExchange": string | null,
+    "encryptedExtension": string | null,
+    "ransomNoteFile": string | null,
+    "ransomDemanded": string | null,
+    "ransomWalletAddress": string | null,
+    "targetDomain": string | null,
+    "serverIp": string | null,
+    "defacerHandle": string | null,
+    "imposterUrl": string | null,
+    "genuineUrl": string | null,
+    "socialPlatform": string | null,
+    "maliciousApkName": string | null,
+    "harassmentMedium": string | null,
+    "threatenedContent": string | null,
+    "extortionDemand": string | null
   },
   "extractedPills": string[]
 }`;
@@ -130,7 +168,7 @@ Schema:
   const response = await openai.chat.completions.create({
     model: "gpt-4o-mini",
     temperature: 0,
-    max_tokens: 450,
+    max_tokens: 500,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: `Classify and extract fields from this narrative:\n\n${narrative}` },
@@ -142,8 +180,7 @@ Schema:
   const parsed = JSON.parse(raw);
 
   // Validate that the returned categoryId is known
-  const known = CATEGORIES.find((c) => c.id === parsed.categoryId);
-  if (!known) return null;
+  const known = CATEGORIES.find((c) => c.id === parsed.categoryId) || CATEGORIES[0];
 
   const detAmount = parsed.detectedAmount ?? (parsed.extractedFields?.amount ? Number(parsed.extractedFields.amount) : undefined);
 
@@ -152,15 +189,20 @@ Schema:
   if (detAmount && !fields.amount) fields.amount = detAmount;
 
   return {
-    categoryId: parsed.categoryId,
-    categoryLabel: parsed.categoryLabel ?? known.label,
-    parentCategory: parsed.parentCategory ?? known.parent,
-    isFinancialFraud: parsed.isFinancialFraud ?? known.isFinancial,
+    categoryId: known.id,
+    categoryLabel: known.label,
+    section: known.section,
+    parentCategory: known.parent,
+    subCategory: known.subCategory,
+    isFinancialFraud: known.isFinancial,
     urgency: parsed.urgency ?? known.defaultUrgency,
+    priorityDeskType: known.priorityDeskType,
+    statutoryCitations: known.statutoryCitations,
+    evidenceChecklist: known.evidenceChecklist,
     detectedAmount: detAmount,
     moneyMoved: parsed.moneyMoved ?? false,
     reasoning: parsed.reasoning ?? "AI-classified.",
-    isDigitalArrest: parsed.isDigitalArrest ?? parsed.categoryId === "digital_arrest",
+    isDigitalArrest: parsed.isDigitalArrest ?? known.id === "digital_arrest",
     source: "ai",
     extractedFields: fields,
     extractedPills: parsed.extractedPills && parsed.extractedPills.length > 0 ? parsed.extractedPills : undefined,

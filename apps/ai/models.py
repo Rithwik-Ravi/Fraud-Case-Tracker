@@ -160,9 +160,14 @@ class TriageRequest(BaseModel):
 class TriageResponse(BaseModel):
     categoryId: str
     categoryLabel: str
+    section: Optional[str] = "OTHER"
     parentCategory: str
+    subCategory: Optional[str] = None
     isFinancialFraud: bool
     urgency: Literal['standard', 'urgent', 'golden-hour']
+    priorityDeskType: Optional[str] = "none"
+    statutoryCitations: List[str] = Field(default_factory=list)
+    evidenceChecklist: List[str] = Field(default_factory=list)
     detectedAmount: Optional[float] = None
     moneyMoved: bool = False
     reasoning: str

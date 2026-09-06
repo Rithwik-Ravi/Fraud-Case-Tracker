@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getOpenAiApiKey } from "@/lib/ai-config";
-import { parseFinancialAmount } from "@/lib/triage";
+import { parseFinancialAmount, classifyNarrative } from "@/lib/triage";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -14,6 +14,8 @@ export interface ChatReportDraft {
   narrative?: string;
   categoryId?: string;
   categoryLabel?: string;
+  section?: "WOMEN_CHILDREN" | "FINANCIAL" | "OTHER";
+  subCategory?: string;
   amount?: number | null;
   bankName?: string | null;
   bankAccount?: string | null;
@@ -26,6 +28,31 @@ export interface ChatReportDraft {
   suspectWebsite?: string | null;
   channel?: string | null;
   incidentDate?: string | null;
+  // Cryptocurrency
+  cryptoNetwork?: string | null;
+  victimWallet?: string | null;
+  suspectWallet?: string | null;
+  transactionHash?: string | null;
+  cryptoExchange?: string | null;
+  // Ransomware & Hacking
+  encryptedExtension?: string | null;
+  ransomNoteFile?: string | null;
+  ransomDemanded?: string | null;
+  ransomWalletAddress?: string | null;
+  targetDomain?: string | null;
+  serverIp?: string | null;
+  defacerHandle?: string | null;
+  // Social Media & Impersonation
+  imposterUrl?: string | null;
+  genuineUrl?: string | null;
+  socialPlatform?: string | null;
+  // Mobile
+  maliciousApkName?: string | null;
+  // Women & Children
+  harassmentMedium?: string | null;
+  threatenedContent?: string | null;
+  extortionDemand?: string | null;
+  reportAnonymously?: boolean;
   isReadyToReport?: boolean;
 }
 
@@ -50,55 +77,64 @@ Key Rules & Guidelines:
 7. EVIDENCE INTEGRITY: Remind them to keep screenshots, chat logs, call records, and transaction receipts without altering them (BSA Section 63 compliant).
 8. Keep responses concise, formatted with clear bullet points, and easy to read on mobile.`;
 
-const REPORTING_SYSTEM_PROMPT = `You are CasePilot's Cyber Incident Intake Officer for Indian citizens.
-Your objective is to conversationally interview the victim, gather their incident facts with empathy, and construct an official complaint draft so they don't have to navigate complex government forms alone.
+const REPORTING_SYSTEM_PROMPT = `You are CasePilot's Cyber Incident Intake Officer for Indian citizens reporting to NCRP (cybercrime.gov.in).
+Your objective is to conversationally interview the victim, gather their incident facts with empathy, and construct an official complaint draft adapting to the 3 NCRP pillars:
+1. Women/Children Related Crime (WOMEN_CHILDREN) - with Option to Report Anonymously (Track 1A) vs Identified (Track 1B).
+2. Financial Fraud (FINANCIAL) - Part A (victim bank, 12-digit UTR, loss) & Part B (suspect account/UPI).
+3. Other Cyber Crime (OTHER) - Social Media, Hacking, Ransomware, Cryptocurrency, Mobile Crime, etc.
 
-Your Behavior:
+Behavior Guidelines:
 1. Speak with calm empathy and reassuring clarity.
-2. Structure your "reply" into two distinct parts:
-   Part 1: A warm, empathetic acknowledgement of what the citizen shared, confirming any details captured so far.
-   Part 2: Following up with their Case Intake Checklist, explain to the victim IN PROPER PROCEDURAL AND LEGAL TERMS WHY THERE IS A NEED FOR EACH PENDING DETAIL TO BE FILLED:
-   • 12-Digit Transaction UTR: Explain that the National Cyber Crime Reporting Portal (1930 / CFCFRMS) requires this 12-digit reference to issue an automated instant lien hold on the recipient bank account before money is laundered across mule accounts.
-   • Suspect UPI ID / Account Number: Explain that cyber investigators and beneficiary banks need the scammer's destination account or UPI handle to issue statutory Section 94 BNSS debit-freeze notices to stop cash withdrawals at ATMs.
-   • Exact Financial Loss (₹): Explain that police FIR registration and restitution mandates under BNSS Section 503 require an exact certified debit figure.
-   • Your Bank & Debited Account / Phone: Explain that RBI Customer Protection guidelines require your home bank to authenticate you as the authorized account owner and log an official unauthorized debit dispute.
-   • Incident Date & Time: Explain that this determines eligibility for the critical 120-minute 'Golden Hour' intervention (which yields the highest fund recovery rates on 1930) and proves compliance with RBI's 3-day zero-liability window.
-   • Suspect Phone Number / Contact: Explain that police cyber cells require caller/messaging numbers to request Call Detail Records (CDR) and telecom preservation orders under Section 91/94 BNSS.
-   • Communication Platform / Channel: Explain that identifying whether contact was via WhatsApp, Telegram, or phone call enables forensic evidence preservation under Bharatiya Sakshya Adhiniyam Section 63.
-
-   If all critical details are already captured, reassure them that all necessary facts have been recorded and invite them to click 'Transfer to Form' to complete their official filing.
-3. Field Extraction:
-   • "suspectAccount": fraudster's UPI ID / VPA (e.g. handle@ybl, name@okaxis) or destination bank account number.
-   • "suspectName": suspect impersonated identity or alias (e.g. "Airtel Executive", "Bank Manager Rajesh", "CBI Officer").
-   • "bankName": complainant's bank or payment app (e.g. SBI, HDFC, PhonePe).
-   • "bankAccount": complainant's debited account number, phone number, or UPI ID if mentioned.
-   • "paymentMode": "UPI" | "Net Banking" | "Credit/Debit Card" | "AEPS" | "Wallet" | "Other".
-   • "amount": numeric INR amount debited or lost.
-   • "utrNumber": 12-digit transaction reference number.
-   • "suspectPhone": suspect caller or WhatsApp mobile number.
-   • "suspectHandle": suspect social handle (@...) or Telegram channel.
-   • "suspectWebsite": phishing link, URL, or malicious APK website.
-   • "channel": "WhatsApp" | "Telegram" | "Phone Call" | "SMS" | "Instagram" | "Fake Website" | "Malicious APK" | "Email" | "Other".
-   • "incidentDate": date or approximate timing (e.g. "Today", "06/09/2026").
+2. Structure your "reply" into two parts:
+   Part 1: A warm, empathetic acknowledgement of what the citizen shared, confirming details captured so far.
+   Part 2: Following up with their Case Intake Checklist, explain in proper procedural and statutory terms why pending details are needed for their SPECIFIC crime type:
+   - For Financial Fraud: explain that 12-digit UTR and suspect UPI/account are needed for 1930 / CFCFRMS automated lien freezes and BNSS Sec 94 debit-freeze notices before cash is withdrawn.
+   - For Cryptocurrency: explain that the blockchain Transaction Hash (TxID) and suspect wallet address are needed to trace coin flow across ledgers and request exchange blacklists.
+   - For Ransomware / Hacking: explain that the ransom note, encrypted file extension, or target server IP are required by CERT-In and state cyber cells to analyze the malware strain and contain network intrusion.
+   - For Social Media Impersonation / Fake Profiles: explain that the imposter URL and genuine profile URL are needed to serve mandatory 24-hour takedown notices under IT Rule 3(2)(b).
+   - For Women & Children / Sextortion: explain that preserving unedited chat logs and suspect numbers establishes criminal intimidation under BNS Sec 351/308, and assure the victim that they have the statutory right under NCRP to report anonymously without disclosing their identity.
+3. Field Extraction: Extract all relevant fields into the draft according to the category.
 4. Output format: You MUST reply ONLY with a valid JSON object matching this schema:
 {
-  "reply": "Your message containing: (1) A warm, empathetic acknowledgement. (2) A section following up on the checklist explaining in proper terms why each pending detail is needed by law enforcement and banks. (3) Encouraging next steps.",
+  "reply": "Your empathetic response and explanation of remaining checklist requirements...",
   "draft": {
-    "narrative": "A cohesive 2-4 sentence summary of the incident based on everything the victim shared.",
-    "categoryId": "upi_fraud" | "net_banking" | "card_fraud" | "investment_scam" | "job_scam" | "loan_app_scam" | "digital_arrest" | "sextortion" | "impersonation" | "other_cybercrime",
-    "categoryLabel": "UPI Related Fraud" (or matching official label),
+    "narrative": "A cohesive 2-4 sentence summary of the incident based on what the victim shared.",
+    "categoryId": "upi_fraud | net_banking | card_fraud | investment_scam | job_scam | loan_app_scam | sim_swap | child_safety | sextortion | cyber_blackmail | cyber_stalking | wc_defamation | impersonation | account_takeover | hack_defacement | hack_server_breach | malware_ransomware | crypto_wallet_drain | mob_malicious_apk | digital_arrest | other_cybercrime",
+    "categoryLabel": "Exact category label",
+    "section": "WOMEN_CHILDREN | FINANCIAL | OTHER",
+    "subCategory": "Subcategory name",
     "amount": number | null,
     "bankName": string | null,
     "bankAccount": string | null,
-    "paymentMode": "UPI" | "Net Banking" | "Credit/Debit Card" | "AEPS" | "Wallet" | "Other" | null,
+    "paymentMode": string | null,
     "utrNumber": string | null,
     "suspectAccount": string | null,
     "suspectName": string | null,
     "suspectPhone": string | null,
     "suspectHandle": string | null,
     "suspectWebsite": string | null,
-    "channel": "WhatsApp" | "Telegram" | "Phone Call" | "SMS" | "Instagram" | "Fake Website" | "Malicious APK" | "Email" | "Other" | null,
+    "channel": string | null,
     "incidentDate": string | null,
+    "cryptoNetwork": string | null,
+    "victimWallet": string | null,
+    "suspectWallet": string | null,
+    "transactionHash": string | null,
+    "cryptoExchange": string | null,
+    "encryptedExtension": string | null,
+    "ransomNoteFile": string | null,
+    "ransomDemanded": string | null,
+    "ransomWalletAddress": string | null,
+    "targetDomain": string | null,
+    "serverIp": string | null,
+    "defacerHandle": string | null,
+    "imposterUrl": string | null,
+    "genuineUrl": string | null,
+    "socialPlatform": string | null,
+    "maliciousApkName": string | null,
+    "harassmentMedium": string | null,
+    "threatenedContent": string | null,
+    "extortionDemand": string | null,
+    "reportAnonymously": boolean,
     "isReadyToReport": boolean
   }
 }`;
@@ -110,92 +146,163 @@ export interface StatutoryFieldExplanation {
 }
 
 /**
- * Returns procedural and statutory justifications under Indian law (BNSS, 1930 / CFCFRMS, RBI, BSA)
+ * Returns procedural and statutory justifications under Indian law (BNSS, 1930 / CFCFRMS, RBI, BSA, IT Act)
  * explaining why each remaining detail is needed by police cyber cells and banks.
+ * DYNAMICALLY adapts to Financial Fraud, Cryptocurrency, Ransomware, Social Media, and Women/Children crimes.
  */
 export function getStatutoryFieldExplanations(
   draft: ChatReportDraft | null | undefined
 ): StatutoryFieldExplanation[] {
   if (!draft) return [];
   const list: StatutoryFieldExplanation[] = [];
+  const catId = draft.categoryId || "";
+  const isCrypto = catId.includes("crypto");
+  const isRansomwareOrHacking = catId.includes("ransomware") || catId.includes("hack") || catId.includes("defacement");
+  const isSocialMedia = catId.includes("impersonation") || catId.includes("account_takeover") || catId.includes("stalking") || catId.includes("wc_defamation");
+  const isWomenChildren = draft.section === "WOMEN_CHILDREN" || catId.includes("child") || catId.includes("sextortion") || catId.includes("blackmail");
+  const isFinancial = draft.section === "FINANCIAL" || (!isCrypto && !isRansomwareOrHacking && !isSocialMedia && !isWomenChildren && Boolean(draft.amount && draft.amount > 0));
 
-  // 1. Transaction UTR
-  if (!draft.utrNumber) {
-    list.push({
-      fieldKey: "utrNumber",
-      name: "12-Digit Transaction UTR (or UPI Ref No.)",
-      reason:
-        "Statutory inter-bank tracking number required by the National Cyber Crime Reporting Portal (1930 / CFCFRMS). Nodal banks need this unique 12-digit code to immediately trace the payment hop across beneficiary accounts and place an emergency lien freeze on the recipient account before money is siphoned into mule networks.",
-    });
+  // ── CATEGORY SPECIFIC FIELDS ───────────────────────────────────────────────
+  if (isCrypto) {
+    if (!draft.transactionHash) {
+      list.push({
+        fieldKey: "transactionHash",
+        name: "Blockchain Transaction Hash (TxID / TxHash)",
+        reason:
+          "Cryptographic hash proving the debit on the public ledger. Under Bharatiya Sakshya Adhiniyam (BSA) Section 63, this immutable ledger proof is required to initiate on-chain tracking.",
+      });
+    }
+    if (!draft.suspectWallet) {
+      list.push({
+        fieldKey: "suspectWallet",
+        name: "Suspect Recipient Wallet Address",
+        reason:
+          "Target wallet address required by cyber units to trace destination clusters and serve AML alerts to Indian and global crypto exchanges (FIU-IND compliance).",
+      });
+    }
+    if (!draft.cryptoNetwork) {
+      list.push({
+        fieldKey: "cryptoNetwork",
+        name: "Blockchain Network (Ethereum, Bitcoin, TRON, Solana, etc.)",
+        reason:
+          "Identifies the ledger architecture and token contract standard for forensic cluster analysis.",
+      });
+    }
+  } else if (isRansomwareOrHacking) {
+    if (!draft.targetDomain && !draft.serverIp) {
+      list.push({
+        fieldKey: "targetDomain",
+        name: "Target Domain or Server IP Address",
+        reason:
+          "Identifies the compromised digital infrastructure for containment and firewall log preservation under Section 43/66 IT Act.",
+      });
+    }
+    if (catId.includes("ransomware") && !draft.encryptedExtension) {
+      list.push({
+        fieldKey: "encryptedExtension",
+        name: "Encrypted File Extension (e.g. .locked, .phobos)",
+        reason:
+          "Enables CERT-In and forensic teams to identify the specific ransomware family and check for available decryptor keys.",
+      });
+    }
+    if (catId.includes("ransomware") && !draft.ransomWalletAddress && !draft.suspectWebsite) {
+      list.push({
+        fieldKey: "ransomContact",
+        name: "Attacker Email / Tor Link / Crypto Wallet from Ransom Note",
+        reason:
+          "Preserves the attacker's extortion coordinates for blacklisting and forensic threat intelligence.",
+      });
+    }
+  } else if (isSocialMedia) {
+    if (!draft.imposterUrl && !draft.suspectHandle) {
+      list.push({
+        fieldKey: "imposterUrl",
+        name: "Imposter / Fake Profile URL or Handle",
+        reason:
+          "Required to issue statutory takedown notices to the social media intermediary under Rule 3(2)(b) of the IT Rules and Section 66D IT Act.",
+      });
+    }
+    if (!draft.genuineUrl) {
+      list.push({
+        fieldKey: "genuineUrl",
+        name: "Your Genuine Profile Link",
+        reason:
+          "Enables cyber investigators and platform grievance officers to verify genuine identity and expedite imposter account removal.",
+      });
+    }
+  } else if (isWomenChildren) {
+    if (!draft.threatenedContent && !draft.narrative) {
+      list.push({
+        fieldKey: "threatenedContent",
+        name: "Nature of Threatened Content or Demands",
+        reason:
+          "Documents criminal intimidation under BNS Section 351/308 and triggers priority emergency protection by the Women & Child Cyber Cell.",
+      });
+    }
+  } else if (isFinancial) {
+    // 1. Transaction UTR
+    if (!draft.utrNumber) {
+      list.push({
+        fieldKey: "utrNumber",
+        name: "12-Digit Transaction UTR (or UPI Ref No.)",
+        reason:
+          "Statutory inter-bank tracking number required by 1930 / CFCFRMS to immediately trace the payment hop across beneficiary accounts and place an emergency lien freeze before money is siphoned into mule networks.",
+      });
+    }
+    // 2. Suspect Account / UPI ID
+    if (!draft.suspectAccount) {
+      list.push({
+        fieldKey: "suspectAccount",
+        name: "Suspect's UPI ID or Destination Account Number",
+        reason:
+          "Cyber investigators require the scammer's destination account to issue statutory debit-freeze notices under Section 94 BNSS and stop ATM cash withdrawals.",
+      });
+    }
+    // 3. Loss Amount
+    if (!draft.amount) {
+      list.push({
+        fieldKey: "amount",
+        name: "Reported Financial Loss Amount (₹)",
+        reason:
+          "Mandatory under BNSS Section 173(3) and Section 503 to establish certified pecuniary loss for police FIR registration and fund restitution.",
+      });
+    }
+    // 4. Complainant Bank Name
+    if (!draft.bankName) {
+      list.push({
+        fieldKey: "bankName",
+        name: "Your Bank or Payment App Name",
+        reason:
+          "Needed to identify your home bank's nodal fraud desk to register an unauthorized debit dispute and protect your rights under RBI's 3-day zero-liability policy.",
+      });
+    }
   }
 
-  // 2. Suspect Account / UPI ID
-  if (!draft.suspectAccount) {
-    list.push({
-      fieldKey: "suspectAccount",
-      name: "Suspect's UPI ID or Destination Account Number",
-      reason:
-        "Cyber investigators and beneficiary banks require the scammer's destination account or UPI handle to issue statutory debit-freeze notices under Section 94 of Bharatiya Nagarik Suraksha Sanhita (BNSS) and stop cash withdrawals at ATMs.",
-    });
-  }
-
-  // 3. Loss Amount
-  if (!draft.amount) {
-    list.push({
-      fieldKey: "amount",
-      name: "Reported Financial Loss Amount (₹)",
-      reason:
-        "Mandatory under BNSS Section 173(3) and Section 503 to establish certified pecuniary loss for police FIR registration and authorize judicial release of recovered funds back to you.",
-    });
-  }
-
-  // 4. Complainant Bank Name
-  if (!draft.bankName) {
-    list.push({
-      fieldKey: "bankName",
-      name: "Your Bank or Payment App Name",
-      reason:
-        "Needed to identify your home bank's nodal fraud desk so they can register an unauthorized electronic debit dispute and initiate inter-bank recovery protocols.",
-    });
-  }
-
-  // 5. Complainant Bank Account / Mobile
-  if (!draft.bankAccount) {
-    list.push({
-      fieldKey: "bankAccount",
-      name: "Your Debited Account Number or Linked Mobile",
-      reason:
-        "Required under RBI Customer Protection guidelines to authenticate you as the lawful account owner and issue an official unauthorized transaction grievance token.",
-    });
-  }
-
-  // 6. Incident Date & Time
+  // ── COMMON FIELDS ACROSS ALL CRIMES ────────────────────────────────────────
   if (!draft.incidentDate) {
     list.push({
       fieldKey: "incidentDate",
-      name: "Date & Approximate Time of Transaction",
+      name: "Incident Date & Approximate Timing",
       reason:
-        "Determines whether your incident falls within the high-priority 120-minute 'Golden Hour' intervention (which yields the highest fund recovery rates on 1930), and preserves your right to full zero-liability restitution under RBI guidelines.",
+        "Establishes statutory chronology for law enforcement inquiry under BNSS Section 173(3) and determines 120-minute Golden Hour priority.",
     });
   }
 
-  // 7. Suspect Contact (Phone / Handle)
-  if (!draft.suspectPhone && !draft.suspectHandle) {
-    list.push({
-      fieldKey: "suspectContact",
-      name: "Suspect's Mobile Number or Social Handle",
-      reason:
-        "Required by police cyber units to serve preservation notices on telecom operators and obtain Call Detail Records (CDR) and IPDR server logs under Section 91/94 BNSS.",
-    });
-  }
-
-  // 8. Communication Channel
   if (!draft.channel) {
     list.push({
       fieldKey: "channel",
-      name: "Platform or Attack Channel (WhatsApp, Telegram, Phone Call, Phishing APK)",
+      name: "Platform or Attack Channel (WhatsApp, Telegram, Phone, Website, etc.)",
       reason:
-        "Identifies the modus operandi and attack vector to preserve electronic evidence and server logs under Bharatiya Sakshya Adhiniyam (BSA) Section 63.",
+        "Identifies the digital attack vector to preserve electronic evidence and server logs under Bharatiya Sakshya Adhiniyam (BSA) Section 63.",
+    });
+  }
+
+  if (!draft.suspectPhone && !draft.suspectHandle && !draft.suspectWebsite && !draft.suspectAccount && !draft.suspectWallet) {
+    list.push({
+      fieldKey: "suspectContact",
+      name: "Suspect Contact (Phone Number, Social Handle, or Website)",
+      reason:
+        "Required by police cyber units to serve preservation notices on telecom operators or internet platforms under Section 91/94 BNSS.",
     });
   }
 
@@ -391,75 +498,59 @@ function generateReportingFallback(messages: ChatMessage[]): { reply: string; dr
   else if (fullText.includes("call") || fullText.includes("phone")) channel = "Phone Call";
   else if (fullText.includes("sms")) channel = "SMS";
 
-  // Category detection
-  let categoryId = "other_cybercrime";
-  let categoryLabel = "Other Cyber Crime";
+  // Leverage classifyNarrative from @/lib/triage for full 3-pillar NCRP coverage and entity extraction
+  const triage = classifyNarrative(userTexts);
+  const ef = triage.extractedFields || {};
 
-  if (fullText.includes("cbi") || fullText.includes("digital arrest") || fullText.includes("police uniform")) {
-    categoryId = "digital_arrest";
-    categoryLabel = "Digital Arrest Scam";
-  } else if (fullText.includes("upi") || fullText.includes("gpay") || fullText.includes("phonepe") || suspectAccount) {
-    categoryId = "upi_fraud";
-    categoryLabel = "UPI Related Fraud";
-  } else if (fullText.includes("card") || fullText.includes("otp") || fullText.includes("cvv")) {
-    categoryId = "card_fraud";
-    categoryLabel = "Credit / Debit Card Fraud";
-  } else if (fullText.includes("task") || fullText.includes("telegram group") || fullText.includes("part time")) {
-    categoryId = "job_scam";
-    categoryLabel = "Work from Home / Job Scam";
-  }
-
-  // Bank extraction
-  let bankName: string | null = null;
-  if (fullText.includes("sbi") || fullText.includes("state bank")) bankName = "State Bank of India";
-  else if (fullText.includes("hdfc")) bankName = "HDFC Bank";
-  else if (fullText.includes("icici")) bankName = "ICICI Bank";
-  else if (fullText.includes("axis")) bankName = "Axis Bank";
-  else if (fullText.includes("pnb") || fullText.includes("punjab national")) bankName = "Punjab National Bank";
-  else if (fullText.includes("phonepe")) bankName = "PhonePe (UPI)";
-  else if (fullText.includes("gpay") || fullText.includes("google pay")) bankName = "Google Pay (UPI)";
-  else if (fullText.includes("paytm")) bankName = "Paytm Payments Bank";
-
-  // Payment mode
-  let paymentMode: string = "UPI";
-  if (fullText.includes("card") || fullText.includes("cvv") || fullText.includes("atm")) paymentMode = "Credit/Debit Card";
-  else if (fullText.includes("net banking") || fullText.includes("imps") || fullText.includes("neft")) paymentMode = "Net Banking";
-  else if (fullText.includes("wallet")) paymentMode = "Wallet";
-
-  // Suspect Name (Hindi & English patterns)
-  let suspectName: string | null = null;
-  const hindiAliasMatch = userTexts.match(/([A-Za-z\s]{3,30})\s+ban\s+kar/i);
-  const aliasMatch = userTexts.match(/(?:pretending to be|claiming to be|named|alias)\s+([A-Za-z\s]{3,30})/i);
-  if (hindiAliasMatch) {
-    const raw = hindiAliasMatch[1].replace(/^(?:ek\s+vyakti\s+ne|kisi\s+ne|caller|someone|fraudster)\s+/i, "").trim();
-    suspectName = raw.charAt(0).toUpperCase() + raw.slice(1);
-  } else if (aliasMatch) {
-    const raw = aliasMatch[1].replace(/^(?:a|an|the)\s+/i, "").trim();
-    suspectName = raw.charAt(0).toUpperCase() + raw.slice(1);
-  }
-
-  // Incident Date
-  let incidentDate: string = "Today";
-  if (fullText.includes("yesterday") || fullText.includes("kal")) incidentDate = "Yesterday";
-
-  const isReadyToReport = Boolean(amount || utrNumber || suspectAccount || suspectPhone || userTexts.length > 50);
+  const isReadyToReport = Boolean(
+    triage.detectedAmount ||
+    ef.utrNumber ||
+    ef.suspectAccount ||
+    ef.suspectPhone ||
+    ef.transactionHash ||
+    ef.suspectWallet ||
+    ef.targetDomain ||
+    ef.imposterUrl ||
+    userTexts.length > 50
+  );
 
   const draft: ChatReportDraft = {
     narrative: userTexts.slice(0, 500),
-    categoryId,
-    categoryLabel,
-    amount,
-    bankName,
-    bankAccount: null,
-    paymentMode,
-    utrNumber,
-    suspectAccount,
-    suspectName,
-    suspectPhone,
-    suspectHandle,
-    suspectWebsite: null,
-    channel,
-    incidentDate,
+    categoryId: triage.categoryId,
+    categoryLabel: triage.categoryLabel,
+    section: triage.section,
+    subCategory: triage.subCategory,
+    amount: triage.detectedAmount ?? null,
+    bankName: ef.bankName ?? null,
+    bankAccount: ef.bankAccount ?? null,
+    paymentMode: ef.paymentMode ?? (triage.isFinancialFraud ? "UPI" : null),
+    utrNumber: ef.utrNumber ?? null,
+    suspectAccount: ef.suspectAccount ?? null,
+    suspectName: ef.suspectName ?? null,
+    suspectPhone: ef.suspectPhone ?? null,
+    suspectHandle: ef.suspectHandle ?? null,
+    suspectWebsite: ef.suspectWebsite ?? null,
+    channel: ef.channel ?? null,
+    incidentDate: ef.incidentDate ?? "Today",
+    cryptoNetwork: ef.cryptoNetwork ?? null,
+    victimWallet: ef.victimWallet ?? null,
+    suspectWallet: ef.suspectWallet ?? null,
+    transactionHash: ef.transactionHash ?? null,
+    cryptoExchange: ef.cryptoExchange ?? null,
+    encryptedExtension: ef.encryptedExtension ?? null,
+    ransomNoteFile: ef.ransomNoteFile ?? null,
+    ransomDemanded: ef.ransomDemanded ?? null,
+    ransomWalletAddress: ef.ransomWalletAddress ?? null,
+    targetDomain: ef.targetDomain ?? null,
+    serverIp: ef.serverIp ?? null,
+    defacerHandle: ef.defacerHandle ?? null,
+    imposterUrl: ef.imposterUrl ?? null,
+    genuineUrl: ef.genuineUrl ?? null,
+    socialPlatform: ef.socialPlatform ?? null,
+    maliciousApkName: ef.maliciousApkName ?? null,
+    harassmentMedium: ef.harassmentMedium ?? null,
+    threatenedContent: ef.threatenedContent ?? null,
+    extortionDemand: ef.extortionDemand ?? null,
     isReadyToReport,
   };
 

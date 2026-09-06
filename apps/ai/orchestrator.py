@@ -452,8 +452,9 @@ class AIOrchestrator:
 
         # Resolve category metadata for top-level frontend contract
         from flow_definitions import CATEGORY_LOOKUP
-        cat_meta = CATEGORY_LOOKUP.get(final_flow, {})
-        cat_id = cat_meta.get("id", final_flow)
+        chosen_cat_id = proposal.categoryId if (proposal and proposal.categoryId and proposal.categoryId in CATEGORY_LOOKUP) else final_flow
+        cat_meta = CATEGORY_LOOKUP.get(chosen_cat_id, CATEGORY_LOOKUP.get(final_flow, {}))
+        cat_id = cat_meta.get("id", chosen_cat_id)
         cat_label = cat_meta.get("label", final_spec.get("title", final_flow))
         parent_cat = cat_meta.get("parent", "Other Cyber Crime")
         is_fin = proposal.isFinancialFraud if proposal and proposal.isFinancialFraud is not None else cat_meta.get("isFinancial", False)

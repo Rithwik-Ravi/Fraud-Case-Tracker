@@ -16,7 +16,7 @@ from models import (
     ClassificationProposal,
     EvidenceItem
 )
-from flow_definitions import FLOW_DEFINITIONS
+from flow_definitions import FLOW_DEFINITIONS, CATEGORY_LOOKUP
 
 class CaseStateMachine:
     """
@@ -37,11 +37,11 @@ class CaseStateMachine:
         2. Proposal confidence >= threshold (default 0.85)
         Returns (new_flow_id, did_transition)
         """
-        if not proposal or not proposal.flow:
+        if not proposal or not (proposal.flow or proposal.categoryId):
             return current_flow or 'DISCOVERY', False
 
-        target = proposal.flow
-        if target not in FLOW_DEFINITIONS and target != 'DISCOVERY':
+        target = proposal.categoryId or proposal.flow
+        if target not in FLOW_DEFINITIONS and target not in CATEGORY_LOOKUP and target != 'DISCOVERY':
             return current_flow or 'DISCOVERY', False
 
         # Transition allowed if initial discovery

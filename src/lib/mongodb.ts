@@ -161,6 +161,10 @@ export interface ComplaintDoc {
     pincode?: string;
   };
   undertakingAccepted?: boolean;
+  section?: "WOMEN_CHILDREN" | "FINANCIAL" | "OTHER";
+  subCategory?: string;
+  reportAnonymously?: boolean;
+  categorySpecificFields?: Record<string, any>;
   evidenceFiles?: Array<{
     name: string;
     size: number;

@@ -8,173 +8,374 @@ conditional rules, evidence recommendations, and safety guidelines for all 21 NC
 from typing import Dict, Any, List
 
 CATEGORIES_METADATA: List[Dict[str, Any]] = [
-    {
-        "id": "upi_fraud",
-        "label": "UPI Related Fraud",
-        "parent": "Financial Fraud",
-        "isFinancial": True,
-        "defaultUrgency": "golden-hour",
-        "description": "Fraudulent debit via UPI, fake collect request, QR code scam, or PhonePe/GPay impersonation."
-    },
-    {
-        "id": "net_banking",
-        "label": "Internet Banking / Phishing Fraud",
-        "parent": "Financial Fraud",
-        "isFinancial": True,
-        "defaultUrgency": "golden-hour",
-        "description": "Unauthorized net banking transfer, phishing login link, or remote access app (AnyDesk/TeamViewer)."
-    },
-    {
-        "id": "card_fraud",
-        "label": "Credit / Debit Card Fraud",
-        "parent": "Financial Fraud",
-        "isFinancial": True,
-        "defaultUrgency": "golden-hour",
-        "description": "Unauthorized ATM withdrawal, POS swipe, card skimming, or online card transaction without consent."
-    },
-    {
-        "id": "investment_scam",
-        "label": "Online Investment / Trading Scam",
-        "parent": "Financial Fraud",
-        "isFinancial": True,
-        "defaultUrgency": "urgent",
-        "description": "High return promise, fake crypto trading app, Telegram investment group, or stock market tip scam."
-    },
-    {
-        "id": "job_scam",
-        "label": "Work from Home / Part-Time Job Scam",
-        "parent": "Financial Fraud",
-        "isFinancial": True,
-        "defaultUrgency": "urgent",
-        "description": "Task scam, YouTube video like/subscribe fraud, daily payment promise requiring deposits."
-    },
-    {
-        "id": "loan_app_scam",
-        "label": "Illegal Loan App / Extortion",
-        "parent": "Financial Fraud",
-        "isFinancial": True,
-        "defaultUrgency": "urgent",
-        "description": "Instant loan disbursed without request, predatory interest, access to contacts and threatening calls."
-    },
-    {
-        "id": "sim_swap",
-        "label": "SIM Swap / Telecom Fraud",
-        "parent": "Financial Fraud",
-        "isFinancial": True,
-        "defaultUrgency": "golden-hour",
-        "description": "Fraudulent SIM card deactivation and duplication to intercept banking SMS and OTPs."
-    },
+    # ── Pillar 1: Women / Children Related Crime ──
     {
         "id": "child_safety",
         "label": "Child Related Cyber Crime / CSAM",
+        "section": "WOMEN_CHILDREN",
         "parent": "Women/Children",
+        "subCategory": "Child Pornography / CSAM (POCSO)",
         "isFinancial": False,
         "defaultUrgency": "urgent",
-        "description": "Child sexual abuse material, grooming, online exploitation of minors, or child cyber harassment."
+        "description": "Child sexual abuse material, grooming, online exploitation of minors, or child cyber harassment.",
+        "priorityDeskType": "safety_desk",
+        "statutoryCitations": ["Section 67B IT Act", "POCSO Act Sections 13, 14, 15", "BNS Section 95"],
+        "evidenceChecklist": ["Screenshots of abusive messages / links", "Website / group URLs", "Suspect contact / handle"]
     },
     {
         "id": "sextortion",
-        "label": "Sextortion / Threatening with Private Photos",
+        "label": "Sextortion / Video Call Extortion",
+        "section": "WOMEN_CHILDREN",
         "parent": "Women/Children",
+        "subCategory": "Sextortion & Private Imagery Blackmail",
         "isFinancial": False,
         "defaultUrgency": "urgent",
-        "description": "Video call blackmail, morphing private pictures, demanding money under threat of leak."
+        "description": "Video call blackmail, morphing private pictures, demanding money under threat of leak.",
+        "priorityDeskType": "safety_desk",
+        "statutoryCitations": ["Section 66E IT Act", "Section 67/67A IT Act", "BNS Section 308 (Extortion)"],
+        "evidenceChecklist": ["Chat logs & extortion demands", "Video call duration logs", "Account / UPI handles where money was demanded"]
     },
     {
         "id": "cyber_blackmail",
-        "label": "Cyber Blackmailing & Harassment",
+        "label": "Cyber Blackmailing & Threatening",
+        "section": "WOMEN_CHILDREN",
         "parent": "Women/Children",
+        "subCategory": "Blackmailing & Intimidation",
         "isFinancial": False,
         "defaultUrgency": "urgent",
-        "description": "Threatening messages, continuous harassment, blackmailing over chat or social media."
+        "description": "Threatening messages, continuous harassment, blackmailing over chat or social media.",
+        "priorityDeskType": "safety_desk",
+        "statutoryCitations": ["BNS Section 351", "Section 66D IT Act", "BNS Section 79"],
+        "evidenceChecklist": ["Screenshots of threatening messages", "Caller ID records", "Social media profile links"]
     },
     {
         "id": "cyber_stalking",
         "label": "Cyber Stalking & Bullying",
+        "section": "WOMEN_CHILDREN",
         "parent": "Women/Children",
+        "subCategory": "Persistent Stalking & Harassment",
         "isFinancial": False,
         "defaultUrgency": "standard",
-        "description": "Persistent unwanted contact, monitoring online activity, defamatory comments or harassment."
+        "description": "Persistent unwanted contact, monitoring online activity, defamatory comments or harassment.",
+        "priorityDeskType": "safety_desk",
+        "statutoryCitations": ["BNS Section 78 (Stalking)", "Section 66 IT Act", "BNS Section 79"],
+        "evidenceChecklist": ["Chronological record of unwanted messages / calls", "Social profile URLs", "Call logs"]
     },
     {
-        "id": "impersonation",
-        "label": "Impersonation / Fake Profile",
-        "parent": "Other Cyber Crime",
-        "isFinancial": False,
-        "defaultUrgency": "standard",
-        "description": "Creating counterfeit profile of a person, government officer, or bank executive."
-    },
-    {
-        "id": "account_takeover",
-        "label": "Social Media / Email Account Hacking",
-        "parent": "Other Cyber Crime",
-        "isFinancial": False,
-        "defaultUrgency": "standard",
-        "description": "Unauthorized access, password changed, credentials stolen via phishing or spyware."
-    },
-    {
-        "id": "malware_ransomware",
-        "label": "Malware / Ransomware Attack",
-        "parent": "Other Cyber Crime",
+        "id": "wc_defamation",
+        "label": "Defamation / Morphed Pictures on Social Media",
+        "section": "WOMEN_CHILDREN",
+        "parent": "Women/Children",
+        "subCategory": "Defamation & Deepfakes",
         "isFinancial": False,
         "defaultUrgency": "urgent",
-        "description": "Files encrypted, device locked, demanding ransom in cryptocurrency or digital payment."
+        "description": "Publishing morphed, deepfake, or defamatory photographs/videos of women or children on public platforms.",
+        "priorityDeskType": "safety_desk",
+        "statutoryCitations": ["BNS Section 356", "Section 66E IT Act", "IT Rule 3(2)(b)"],
+        "evidenceChecklist": ["Live URL of defamatory posts", "Original photo for comparison", "Screenshots with timestamp"]
     },
+
+    # ── Pillar 2: Financial Fraud ──
     {
-        "id": "other_cybercrime",
-        "label": "Other Cyber Crime",
-        "parent": "Other Cyber Crime",
-        "isFinancial": False,
-        "defaultUrgency": "standard",
-        "description": "Any other digital offence not covered by specific categories above."
-    },
-    {
-        "id": "digital_arrest",
-        "label": "Digital Arrest Scam",
-        "parent": "Other Cyber Crime",
-        "isFinancial": False,
-        "defaultUrgency": "urgent",
-        "description": "Impersonation of police, CBI, ED, customs, or income-tax officers over video/audio call, threatening illegal arrest unless a payment is made. No such legal procedure exists."
-    },
-    {
-        "id": "romance_scam",
-        "label": "Romance / Matrimonial Fraud",
+        "id": "upi_fraud",
+        "label": "UPI Related Fraud",
+        "section": "FINANCIAL",
         "parent": "Financial Fraud",
-        "isFinancial": True,
-        "defaultUrgency": "urgent",
-        "description": "Fake relationships on dating, matrimonial, or social sites leading to money transfers, gift demands, or nude photo sharing."
-    },
-    {
-        "id": "fake_customer_care",
-        "label": "Fake Helpline / Customer Care Fraud",
-        "parent": "Financial Fraud",
+        "subCategory": "UPI Fraud / QR Code Scam",
         "isFinancial": True,
         "defaultUrgency": "golden-hour",
-        "description": "Fraudster poses as bank, telecom, or e-commerce customer care to extract OTPs, card details, or remote access."
+        "description": "Fraudulent debit via UPI, fake collect request, QR code scam, or PhonePe/GPay impersonation.",
+        "priorityDeskType": "banking_freeze",
+        "statutoryCitations": ["Section 66D IT Act", "BNS Section 318(4)", "1930 / CFCFRMS Inter-bank Lien Protocol"],
+        "evidenceChecklist": ["12-Digit Transaction Reference (UTR)", "Bank statement showing debit", "Screenshot of UPI receipt"]
     },
     {
-        "id": "government_impersonation",
-        "label": "Government Official Impersonation",
-        "parent": "Other Cyber Crime",
-        "isFinancial": False,
-        "defaultUrgency": "urgent",
-        "description": "Impersonation of a government officer, court official, or regulator (not in digital-arrest pattern) to extract money or personal data."
-    },
-    {
-        "id": "courier_parcel_scam",
-        "label": "Courier / Parcel Scam",
+        "id": "net_banking",
+        "label": "Internet Banking / Phishing Fraud",
+        "section": "FINANCIAL",
         "parent": "Financial Fraud",
+        "subCategory": "Net Banking / Phishing Links",
+        "isFinancial": True,
+        "defaultUrgency": "golden-hour",
+        "description": "Unauthorized net banking transfer, phishing login link, or remote access app (AnyDesk/TeamViewer).",
+        "priorityDeskType": "banking_freeze",
+        "statutoryCitations": ["Section 66D IT Act", "BNS Section 318(4)", "RBI Customer Protection Directives"],
+        "evidenceChecklist": ["Bank statement showing debit", "12-digit UTR", "Phishing URL / Remote access app name"]
+    },
+    {
+        "id": "card_fraud",
+        "label": "Credit / Debit Card Fraud",
+        "section": "FINANCIAL",
+        "parent": "Financial Fraud",
+        "subCategory": "Card Skimming / Unauthorized Swipe",
+        "isFinancial": True,
+        "defaultUrgency": "golden-hour",
+        "description": "Unauthorized ATM withdrawal, POS swipe, card skimming, or online card transaction without consent.",
+        "priorityDeskType": "banking_freeze",
+        "statutoryCitations": ["Section 66C/D IT Act", "BNS Section 318(4)"],
+        "evidenceChecklist": ["Copy of bank card statement", "SMS alert received from card issuer", "Merchant name in alert"]
+    },
+    {
+        "id": "investment_scam",
+        "label": "Online Investment / Trading Scam",
+        "section": "FINANCIAL",
+        "parent": "Financial Fraud",
+        "subCategory": "Fake Trading Apps & Stock Schemes",
         "isFinancial": True,
         "defaultUrgency": "urgent",
-        "description": "Fake notification of seized parcel, drugs or contraband found in courier, demanding customs duty or clearance payment."
+        "description": "High return promise, fake crypto trading app, Telegram investment group, or stock market tip scam.",
+        "priorityDeskType": "banking_freeze",
+        "statutoryCitations": ["BNS Section 318(4)", "Section 66D IT Act", "SEBI Act Section 12A"],
+        "evidenceChecklist": ["Beneficiary bank account / UPI IDs where deposits were sent", "Bank transfer UTR receipts", "Telegram / WhatsApp chat history"]
+    },
+    {
+        "id": "job_scam",
+        "label": "Work from Home / Part-Time Job Scam",
+        "section": "FINANCIAL",
+        "parent": "Financial Fraud",
+        "subCategory": "Task & Like-Subscribe Employment Scam",
+        "isFinancial": True,
+        "defaultUrgency": "urgent",
+        "description": "Task scam, YouTube video like/subscribe fraud, daily payment promise requiring deposits.",
+        "priorityDeskType": "banking_freeze",
+        "statutoryCitations": ["BNS Section 318(4)", "Section 66D IT Act"],
+        "evidenceChecklist": ["Deposit UTR numbers & recipient bank accounts", "Recruitment chat history", "Task platform screenshot"]
     },
     {
         "id": "task_scam",
         "label": "Task / Like-Subscribe Scam",
+        "section": "FINANCIAL",
         "parent": "Financial Fraud",
+        "subCategory": "Prepaid Task Platform Fraud",
         "isFinancial": True,
         "defaultUrgency": "urgent",
-        "description": "Online task platform (YouTube like, Instagram follow, hotel reviews) requiring deposits to 'unlock' earnings; earnings are never paid out."
+        "description": "Online task platform requiring deposits to 'unlock' earnings; earnings are never paid out.",
+        "priorityDeskType": "banking_freeze",
+        "statutoryCitations": ["BNS Section 318(4)", "Section 66D IT Act"],
+        "evidenceChecklist": ["Deposit receipts / UTRs", "Task platform URL / APK", "Telegram admin handle"]
+    },
+    {
+        "id": "loan_app_scam",
+        "label": "Illegal Loan App / Extortion",
+        "section": "FINANCIAL",
+        "parent": "Financial Fraud",
+        "subCategory": "Predatory Instant Loan Apps",
+        "isFinancial": True,
+        "defaultUrgency": "urgent",
+        "description": "Instant loan disbursed without request, predatory interest, access to contacts and threatening calls.",
+        "priorityDeskType": "banking_freeze",
+        "statutoryCitations": ["BNS Section 308 (Extortion)", "BNS Section 351", "RBI Digital Lending Guidelines 2022"],
+        "evidenceChecklist": ["Name of the loan app / APK file", "Bank statement showing disbursed amount", "Audio recordings of threats"]
+    },
+    {
+        "id": "sim_swap",
+        "label": "SIM Swap / Telecom Fraud",
+        "section": "FINANCIAL",
+        "parent": "Financial Fraud",
+        "subCategory": "SIM Cloning & Telecom Takeover",
+        "isFinancial": True,
+        "defaultUrgency": "golden-hour",
+        "description": "Fraudulent SIM card deactivation and duplication to intercept banking SMS and OTPs.",
+        "priorityDeskType": "banking_freeze",
+        "statutoryCitations": ["Section 66C/D IT Act", "Indian Telegraph Act Section 25"],
+        "evidenceChecklist": ["Exact time network signal was lost", "Telecom service provider complaint reference", "Bank accounts linked"]
+    },
+    {
+        "id": "fin_demat",
+        "label": "Demat / Stock Trading Account Fraud",
+        "section": "FINANCIAL",
+        "parent": "Financial Fraud",
+        "subCategory": "Demat Compromise & Unauthorized Trade",
+        "isFinancial": True,
+        "defaultUrgency": "golden-hour",
+        "description": "Unauthorized access to stock broking account, unauthorized sale of holdings, or fund diversion.",
+        "priorityDeskType": "banking_freeze",
+        "statutoryCitations": ["Section 66C/D IT Act", "BNS Section 318(4)", "SEBI Cyber Security Directives"],
+        "evidenceChecklist": ["Broker name & Demat Client ID", "Contract note of unauthorized trades", "Bank statement"]
+    },
+    {
+        "id": "fin_aeps",
+        "label": "AEPS / Biometric / Aadhaar Banking Fraud",
+        "section": "FINANCIAL",
+        "parent": "Financial Fraud",
+        "subCategory": "Aadhaar Enabled Payment System Fraud",
+        "isFinancial": True,
+        "defaultUrgency": "golden-hour",
+        "description": "Unauthorized cash withdrawal from bank account using cloned Aadhaar fingerprints via AEPS.",
+        "priorityDeskType": "banking_freeze",
+        "statutoryCitations": ["Aadhaar Act Section 42/43", "Section 66C/D IT Act", "BNS Section 318(4)"],
+        "evidenceChecklist": ["Bank account statement showing AEPS withdrawal", "Bank branch complaint copy", "Business Correspondent location"]
+    },
+    {
+        "id": "fake_customer_care",
+        "label": "Fake Helpline / Customer Care Fraud",
+        "section": "FINANCIAL",
+        "parent": "Financial Fraud",
+        "subCategory": "Search Engine Fake Helpline Fraud",
+        "isFinancial": True,
+        "defaultUrgency": "golden-hour",
+        "description": "Fraudster poses as bank, telecom, or e-commerce customer care to extract OTPs, card details, or remote access.",
+        "priorityDeskType": "banking_freeze",
+        "statutoryCitations": ["Section 66D IT Act", "BNS Section 318(4)"],
+        "evidenceChecklist": ["Phone number called from Google search", "12-digit UTR", "Bank statement"]
+    },
+    {
+        "id": "courier_parcel_scam",
+        "label": "Courier / Parcel Scam",
+        "section": "FINANCIAL",
+        "parent": "Financial Fraud",
+        "subCategory": "Fake Customs & Seized Parcel Fee",
+        "isFinancial": True,
+        "defaultUrgency": "urgent",
+        "description": "Fake notification of seized parcel, drugs or contraband found in courier, demanding customs duty or clearance payment.",
+        "priorityDeskType": "banking_freeze",
+        "statutoryCitations": ["BNS Section 308 (Extortion)", "BNS Section 318(4)", "Section 66D IT Act"],
+        "evidenceChecklist": ["Fake courier tracking link / SMS", "Payment receipts / UTRs", "Caller contact numbers"]
+    },
+    {
+        "id": "romance_scam",
+        "label": "Romance / Matrimonial Fraud",
+        "section": "FINANCIAL",
+        "parent": "Financial Fraud",
+        "subCategory": "Matrimonial & Dating App Fraud",
+        "isFinancial": True,
+        "defaultUrgency": "urgent",
+        "description": "Fake relationships on dating, matrimonial, or social sites leading to money transfers, gift demands, or customs duty scams.",
+        "priorityDeskType": "banking_freeze",
+        "statutoryCitations": ["BNS Section 318(4)", "Section 66D IT Act"],
+        "evidenceChecklist": ["Matrimonial / dating app profile link", "Complete chat history", "Bank accounts where money was sent"]
+    },
+
+    # ── Pillar 3: Other Cyber Crime ──
+    {
+        "id": "impersonation",
+        "label": "Impersonation / Fake Profile",
+        "section": "OTHER",
+        "parent": "Other Cyber Crime",
+        "subCategory": "Social Media Impersonation",
+        "isFinancial": False,
+        "defaultUrgency": "standard",
+        "description": "Creating counterfeit profile of a person, government officer, or bank executive.",
+        "priorityDeskType": "none",
+        "statutoryCitations": ["Section 66D IT Act", "BNS Section 319"],
+        "evidenceChecklist": ["URL of fake / imposter profile", "URL of genuine profile", "Screenshots of imposter bio and posts"]
+    },
+    {
+        "id": "account_takeover",
+        "label": "Social Media / Email Account Hacking",
+        "section": "OTHER",
+        "parent": "Other Cyber Crime",
+        "subCategory": "Account Hijack & Compromise",
+        "isFinancial": False,
+        "defaultUrgency": "standard",
+        "description": "Unauthorized access, password changed, credentials stolen via phishing or spyware.",
+        "priorityDeskType": "none",
+        "statutoryCitations": ["Section 43/66 IT Act", "Section 66C IT Act"],
+        "evidenceChecklist": ["Compromised handle / email", "Security alert email from platform", "Approximate time of lockout"]
+    },
+    {
+        "id": "hack_defacement",
+        "label": "Website Defacement",
+        "section": "OTHER",
+        "parent": "Other Cyber Crime",
+        "subCategory": "Website Defacement & Unauthorized Alteration",
+        "isFinancial": False,
+        "defaultUrgency": "urgent",
+        "description": "Unauthorized alteration of website appearance, hacking into web server, inserting hacker splash pages.",
+        "priorityDeskType": "system_containment",
+        "statutoryCitations": ["Section 43/66 IT Act", "Section 66F IT Act"],
+        "evidenceChecklist": ["Defaced webpage URL & archive/screenshot", "Server web access and error logs", "FTP / SSH login logs"]
+    },
+    {
+        "id": "hack_server_breach",
+        "label": "Unauthorized Server Access / Breach",
+        "section": "OTHER",
+        "parent": "Other Cyber Crime",
+        "subCategory": "Server Intrusion & Database Breach",
+        "isFinancial": False,
+        "defaultUrgency": "urgent",
+        "description": "Unauthorized intrusion into cloud infrastructure, internal databases, or enterprise computer systems.",
+        "priorityDeskType": "system_containment",
+        "statutoryCitations": ["Section 43/66 IT Act", "DPDP Act 2023 Sec 8(6)"],
+        "evidenceChecklist": ["Firewall & authentication logs", "Target domain / IP", "Compromised accounts"]
+    },
+    {
+        "id": "malware_ransomware",
+        "label": "Malware / Ransomware Attack",
+        "section": "OTHER",
+        "parent": "Other Cyber Crime",
+        "subCategory": "Ransomware & System Encryption",
+        "isFinancial": False,
+        "defaultUrgency": "urgent",
+        "description": "Files encrypted, device locked, demanding ransom in cryptocurrency or digital payment.",
+        "priorityDeskType": "system_containment",
+        "statutoryCitations": ["Section 43/66 IT Act", "BNS Section 308 (Extortion)", "CERT-In Directions 2022"],
+        "evidenceChecklist": ["Ransom Note text file (.txt / .html)", "File extension (e.g. .locked)", "Attacker crypto wallet / Tor link"]
+    },
+    {
+        "id": "crypto_wallet_drain",
+        "label": "Cryptocurrency Crime / Wallet Drain",
+        "section": "OTHER",
+        "parent": "Other Cyber Crime",
+        "subCategory": "Crypto Wallet Drain & Smart Contract Phishing",
+        "isFinancial": True,
+        "defaultUrgency": "golden-hour",
+        "description": "Drain of crypto assets from Web3 wallet (MetaMask/Phantom) via malicious smart contract permit signature or seed phrase theft.",
+        "priorityDeskType": "system_containment",
+        "statutoryCitations": ["Section 66D IT Act", "BNS Section 318(4)", "FIU-IND Anti-Money Laundering Framework"],
+        "evidenceChecklist": ["Victim Web3 wallet address", "Suspect recipient wallet address", "Blockchain transaction hash (TxID)", "Blockchain network", "Centralized exchange name"]
+    },
+    {
+        "id": "mob_malicious_apk",
+        "label": "Malicious Mobile APK / Device Spyware",
+        "section": "OTHER",
+        "parent": "Other Cyber Crime",
+        "subCategory": "Malicious Android APK & Spyware",
+        "isFinancial": False,
+        "defaultUrgency": "urgent",
+        "description": "Deceptive APK installation (e.g. electricity bill update, e-challan, PM scheme) stealing OTPs and accessibility access.",
+        "priorityDeskType": "system_containment",
+        "statutoryCitations": ["Section 43/66 IT Act", "Section 66C/D IT Act"],
+        "evidenceChecklist": ["Name of malicious APK or download URL", "Source phone number or WhatsApp chat", "Device model and Android version"]
+    },
+    {
+        "id": "digital_arrest",
+        "label": "Digital Arrest Scam",
+        "section": "OTHER",
+        "parent": "Other Cyber Crime",
+        "subCategory": "Impersonation of Law Enforcement & Video Arrest",
+        "isFinancial": False,
+        "defaultUrgency": "urgent",
+        "description": "Impersonation of police, CBI, ED, customs, or income-tax officers over video/audio call, threatening illegal arrest unless a payment is made. No such legal procedure exists.",
+        "priorityDeskType": "safety_desk",
+        "statutoryCitations": ["BNS Section 204", "BNS Section 308", "BNS Section 318(4)", "Section 66D IT Act"],
+        "evidenceChecklist": ["Caller phone numbers & Skype/WhatsApp IDs", "Screenshots of fake arrest warrants", "Bank accounts provided for transfer"]
+    },
+    {
+        "id": "government_impersonation",
+        "label": "Government Official Impersonation",
+        "section": "OTHER",
+        "parent": "Other Cyber Crime",
+        "subCategory": "Counterfeit Government Authority",
+        "isFinancial": False,
+        "defaultUrgency": "urgent",
+        "description": "Impersonation of a government officer, court official, or regulator (not in digital-arrest pattern) to extract money or personal data.",
+        "priorityDeskType": "none",
+        "statutoryCitations": ["BNS Section 204", "Section 66D IT Act"],
+        "evidenceChecklist": ["Contact number or email used by imposter", "Fake badge or official letterhead shown", "Demands made"]
+    },
+    {
+        "id": "other_cybercrime",
+        "label": "Other Cyber Crime",
+        "section": "OTHER",
+        "parent": "Other Cyber Crime",
+        "subCategory": "General Cyber Offence",
+        "isFinancial": False,
+        "defaultUrgency": "standard",
+        "description": "Any other digital offence not covered by specific categories above.",
+        "priorityDeskType": "none",
+        "statutoryCitations": ["Information Technology Act 2000", "Bharatiya Nyaya Sanhita 2023"],
+        "evidenceChecklist": ["Incident screenshots", "Suspect handles / numbers / URLs", "Sequence of events"]
     }
 ]
 
@@ -712,6 +913,185 @@ FLOW_DEFINITIONS: Dict[str, Dict[str, Any]] = {
         "question_priority": ["incidentDate", "description"],
         "base_tabs": ["incident", "evidence", "review"],
         "safety_rules": ["Preserve all relevant digital evidence, links, and messages."]
+    },
+
+    # ── 22. Cryptocurrency Crime / Wallet Drain ──
+    "crypto_wallet_drain": {
+        "id": "crypto_wallet_drain",
+        "title": "Cryptocurrency Crime / Wallet Drain",
+        "parent": "Other Cyber Crime",
+        "is_financial": True,
+        "urgency": "golden-hour",
+        "statutory_reference": "Section 66D IT Act & BNS Section 318(4). FIU-IND Anti-Money Laundering Framework.",
+        "classification": {
+            "keywords": ["crypto", "bitcoin", "ethereum", "wallet drain", "metamask", "phantom", "smart contract", "seed phrase", "usdt", "txhash", "tron", "binance", "txid"],
+            "subtypes": ["WEB3_WALLET_DRAIN", "SMART_CONTRACT_PERMIT_SCAM", "FAKE_CRYPTO_EXCHANGE"]
+        },
+        "sections": {
+            "incident": {"label": "Incident Overview", "required": ["incidentDate", "description"], "optional": ["channel"]},
+            "crypto": {"label": "Blockchain & Wallet Details", "required": ["suspectWallet", "transactionHash"], "optional": ["cryptoNetwork", "victimWallet", "cryptoExchange"]},
+            "financial": {"label": "Crypto Loss Figure", "required": [], "optional": ["fraudAmount"]},
+            "evidence": {"label": "Evidence Vault", "recommended": ["blockchain_explorer_receipt", "exchange_statement", "chat_screenshot"], "required": []}
+        },
+        "question_priority": ["suspectWallet", "transactionHash", "cryptoNetwork", "cryptoExchange", "fraudAmount", "incidentDate", "description"],
+        "base_tabs": ["incident", "crypto", "evidence", "review"],
+        "safety_rules": [
+            "Revoke token approvals immediately on Revoke.cash or blockchain explorer.",
+            "Transfer remaining assets from compromised seed phrase wallet to fresh hardware wallet.",
+            "Report suspect address immediately to FIU-IND and exchange compliance desks."
+        ]
+    },
+
+    # ── 23. Website Defacement ──
+    "hack_defacement": {
+        "id": "hack_defacement",
+        "title": "Website Defacement",
+        "parent": "Other Cyber Crime",
+        "is_financial": False,
+        "urgency": "urgent",
+        "statutory_reference": "Section 43/66 IT Act & Section 66F IT Act (Cyber Terrorism).",
+        "classification": {
+            "keywords": ["defaced", "website hacked", "homepage changed", "defacer", "anonghost", "hacktivist", "splash page"],
+            "subtypes": ["WEBSITE_DEFACEMENT", "INDEX_PAGE_ALTERATION", "DNS_HIJACK"]
+        },
+        "sections": {
+            "incident": {"label": "Incident Overview", "required": ["incidentDate", "description"], "optional": []},
+            "technical": {"label": "Defacement & Server Scope", "required": ["targetDomain"], "optional": ["serverIp", "defacerHandle"]},
+            "evidence": {"label": "Evidence Vault", "recommended": ["defaced_screenshot", "server_access_logs", "ftp_ssh_logs"], "required": []}
+        },
+        "question_priority": ["targetDomain", "serverIp", "defacerHandle", "incidentDate", "description"],
+        "base_tabs": ["incident", "technical", "evidence", "review"],
+        "safety_rules": [
+            "Isolate the web server immediately from public internet / DNS routing.",
+            "Preserve access.log, error.log, and memory dumps before rebooting or rolling back.",
+            "Mandatory 6-hour incident reporting window to CERT-In (incident@cert-in.org.in)."
+        ]
+    },
+
+    # ── 24. Unauthorized Server Access / Breach ──
+    "hack_server_breach": {
+        "id": "hack_server_breach",
+        "title": "Unauthorized Server Access / Breach",
+        "parent": "Other Cyber Crime",
+        "is_financial": False,
+        "urgency": "urgent",
+        "statutory_reference": "Section 43/66 IT Act & DPDP Act 2023 Sec 8(6).",
+        "classification": {
+            "keywords": ["server breach", "database breach", "unauthorized ssh", "root access", "data exfiltration", "cloud breach"],
+            "subtypes": ["DATABASE_EXFILTRATION", "UNAUTHORIZED_SSH_INTRUSION", "CLOUD_TENANT_BREACH"]
+        },
+        "sections": {
+            "incident": {"label": "Incident Overview", "required": ["incidentDate", "description"], "optional": []},
+            "technical": {"label": "Server & Intrusion Scope", "required": ["serverIp"], "optional": ["targetDomain", "compromisedAccounts"]},
+            "evidence": {"label": "Evidence Vault", "recommended": ["firewall_logs", "auth_log", "pcap_traffic"], "required": []}
+        },
+        "question_priority": ["serverIp", "targetDomain", "incidentDate", "description"],
+        "base_tabs": ["incident", "technical", "evidence", "review"],
+        "safety_rules": [
+            "Rotate all administrative keys, SSH certificates, and IAM credentials immediately.",
+            "Preserve server logs for mandatory 180-day retention mandate under CERT-In directions."
+        ]
+    },
+
+    # ── 25. Malicious Mobile APK / Device Spyware ──
+    "mob_malicious_apk": {
+        "id": "mob_malicious_apk",
+        "title": "Malicious Mobile APK / Device Spyware",
+        "parent": "Other Cyber Crime",
+        "is_financial": False,
+        "urgency": "urgent",
+        "statutory_reference": "Section 43/66 IT Act & Section 66C/D IT Act.",
+        "classification": {
+            "keywords": [".apk", "malicious apk", "installed app", "electricity bill apk", "sbi reward apk", "challan apk", "spyware app"],
+            "subtypes": ["MALICIOUS_APK_SPYWARE", "SMS_FORWARDER_TROJAN", "ACCESSIBILITY_OVERLAY_MALWARE"]
+        },
+        "sections": {
+            "incident": {"label": "Incident Overview", "required": ["incidentDate", "description"], "optional": []},
+            "mobile": {"label": "Malware Information", "required": ["maliciousApkName"], "optional": ["deviceType", "telecomOperator"]},
+            "evidence": {"label": "Evidence Vault", "recommended": ["apk_download_sms", "apk_file_hash", "device_screenshot"], "required": []}
+        },
+        "question_priority": ["maliciousApkName", "deviceType", "incidentDate", "description"],
+        "base_tabs": ["incident", "mobile", "evidence", "review"],
+        "safety_rules": [
+            "Put phone on Airplane Mode immediately to stop SMS forwarding and unauthorized OTP relays.",
+            "Boot into Safe Mode and uninstall the malicious APK, or perform a factory reset.",
+            "Immediately log into your bank from a CLEAN device and change net banking credentials."
+        ]
+    },
+
+    # ── 26. Defamation / Morphed Pictures on Social Media ──
+    "wc_defamation": {
+        "id": "wc_defamation",
+        "title": "Defamation / Morphed Pictures on Social Media",
+        "parent": "Women/Children",
+        "is_financial": False,
+        "urgency": "urgent",
+        "statutory_reference": "BNS Section 356, Section 66E IT Act & Rule 3(2)(b) IT Intermediary Rules 2021.",
+        "classification": {
+            "keywords": ["morphed picture", "deepfake", "defamatory post", "defamation social media", "fake nudes uploaded", "reputation damage"],
+            "subtypes": ["DEEPFAKE_DEFAMATION", "MORPHER_PUBLIC_POST", "UNAUTHORIZED_PHOTO_LEAK"]
+        },
+        "sections": {
+            "incident": {"label": "Incident Overview", "required": ["incidentDate", "description"], "optional": []},
+            "social": {"label": "Offending Post / Profile", "required": ["imposterUrl"], "optional": ["socialPlatform", "genuineUrl"]},
+            "evidence": {"label": "Evidence Vault", "recommended": ["timestamped_url_screenshot", "original_photo_evidence"], "required": []}
+        },
+        "question_priority": ["imposterUrl", "socialPlatform", "incidentDate", "description"],
+        "base_tabs": ["incident", "social", "evidence", "review"],
+        "safety_rules": [
+            "Capture live URL and screenshots with system timestamp before requesting takedown.",
+            "Under Rule 3(2)(b) of IT Rules 2021, platforms are legally mandated to remove intimate/morphed imagery within 24 hours of grievance notification."
+        ]
+    },
+
+    # ── 27. Demat / Stock Trading Account Fraud ──
+    "fin_demat": {
+        "id": "fin_demat",
+        "title": "Demat / Stock Trading Account Fraud",
+        "parent": "Financial Fraud",
+        "is_financial": True,
+        "urgency": "golden-hour",
+        "statutory_reference": "Section 66C/D IT Act, BNS Section 318(4), SEBI Cyber Security Directives.",
+        "classification": {
+            "keywords": ["demat", "stock trading account", "zerodha", "groww", "angelone", "unauthorized trade", "shares sold without permission"],
+            "subtypes": ["UNAUTHORIZED_SHARE_LIQUIDATION", "BROKER_CREDENTIAL_TAKEOVER"]
+        },
+        "sections": {
+            "incident": {"label": "Incident Overview", "required": ["incidentDate", "description"], "optional": []},
+            "financial": {"label": "Trading Loss & Demat Info", "required": ["fraudAmount", "bankName"], "optional": ["dematClientId"]},
+            "evidence": {"label": "Evidence Vault", "recommended": ["broker_contract_note", "demat_holding_statement"], "required": []}
+        },
+        "question_priority": ["fraudAmount", "bankName", "incidentDate", "description"],
+        "base_tabs": ["incident", "financial", "evidence", "review"],
+        "safety_rules": [
+            "Contact your broker immediately to freeze trading permissions and revoke API keys.",
+            "Inform CDSL / NSDL depository to lock Demat account operations."
+        ]
+    },
+
+    # ── 28. AEPS / Biometric / Aadhaar Banking Fraud ──
+    "fin_aeps": {
+        "id": "fin_aeps",
+        "title": "AEPS / Biometric / Aadhaar Banking Fraud",
+        "parent": "Financial Fraud",
+        "is_financial": True,
+        "urgency": "golden-hour",
+        "statutory_reference": "Aadhaar Act Section 42/43, Section 66C/D IT Act, BNS Section 318(4).",
+        "classification": {
+            "keywords": ["aeps", "biometric debit", "aadhaar fingerprint", "micro atm cash withdrawal", "fingerprint cloned", "aadhaar fraud"],
+            "subtypes": ["CLONED_BIOMETRIC_AEPS", "BUSINESS_CORRESPONDENT_FRAUD"]
+        },
+        "sections": {
+            "incident": {"label": "Incident Overview", "required": ["incidentDate", "description"], "optional": []},
+            "financial": {"label": "AEPS Transaction Details", "required": ["fraudAmount", "bankName", "utrNumber"], "optional": []},
+            "evidence": {"label": "Evidence Vault", "recommended": ["bank_passbook_copy", "aeps_transaction_sms"], "required": []}
+        },
+        "question_priority": ["fraudAmount", "bankName", "utrNumber", "incidentDate", "description"],
+        "base_tabs": ["incident", "financial", "evidence", "review"],
+        "safety_rules": [
+            "Lock your Aadhaar biometrics IMMEDIATELY via the mAadhaar app or uidai.gov.in portal.",
+            "File a formal dispute with your bank branch citing unauthorized AEPS debit under RBI zero-liability rules."
+        ]
     }
 }
 

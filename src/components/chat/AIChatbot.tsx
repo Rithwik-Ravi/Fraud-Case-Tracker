@@ -41,6 +41,8 @@ export interface ChatReportDraft {
   narrative?: string;
   categoryId?: string;
   categoryLabel?: string;
+  section?: "WOMEN_CHILDREN" | "FINANCIAL" | "OTHER";
+  subCategory?: string;
   amount?: number | null;
   bankName?: string | null;
   bankAccount?: string | null;
@@ -53,6 +55,31 @@ export interface ChatReportDraft {
   suspectWebsite?: string | null;
   channel?: string | null;
   incidentDate?: string | null;
+  // Cryptocurrency
+  cryptoNetwork?: string | null;
+  victimWallet?: string | null;
+  suspectWallet?: string | null;
+  transactionHash?: string | null;
+  cryptoExchange?: string | null;
+  // Ransomware & Hacking
+  encryptedExtension?: string | null;
+  ransomNoteFile?: string | null;
+  ransomDemanded?: string | null;
+  ransomWalletAddress?: string | null;
+  targetDomain?: string | null;
+  serverIp?: string | null;
+  defacerHandle?: string | null;
+  // Social Media & Impersonation
+  imposterUrl?: string | null;
+  genuineUrl?: string | null;
+  socialPlatform?: string | null;
+  // Mobile
+  maliciousApkName?: string | null;
+  // Women & Children
+  harassmentMedium?: string | null;
+  threatenedContent?: string | null;
+  extortionDemand?: string | null;
+  reportAnonymously?: boolean;
   isReadyToReport?: boolean;
 }
 
@@ -927,61 +954,150 @@ function IntakeChecklistTable({
   onTransfer: () => void;
   transferredSuccess?: boolean;
 }) {
+  const catId = draft.categoryId || "";
+  const isCrypto = catId.includes("crypto");
+  const isRansomwareOrHacking = catId.includes("ransomware") || catId.includes("hack") || catId.includes("defacement");
+  const isSocialMedia = catId.includes("impersonation") || catId.includes("account_takeover") || catId.includes("stalking") || catId.includes("wc_defamation");
+  const isWomenChildren = draft.section === "WOMEN_CHILDREN" || catId.includes("child") || catId.includes("sextortion") || catId.includes("blackmail");
+
+  // Dynamic Category-Aware Checklist Builder
   const checklistItems = [
     {
       id: "cat",
       name: "Crime Classification",
-      desc: "Determines statutory sections under BNS & IT Act",
+      desc: draft.subCategory ? `${draft.section || "NCRP"} • ${draft.subCategory}` : "Determines statutory sections under BNS & IT Act",
       value: draft.categoryLabel || null,
     },
-    {
-      id: "amt",
-      name: "Reported Loss",
-      desc: "Mandatory under BNSS 503 for FIR & fund restitution",
-      value: draft.amount ? `₹${Number(draft.amount).toLocaleString("en-IN")}` : null,
-    },
-    {
-      id: "bank",
-      name: "Your Bank / App",
-      desc: "Needed for home bank dispute claim & chargeback",
-      value: draft.bankName || null,
-    },
-    {
-      id: "debit",
-      name: "Your Account / Mobile",
-      desc: "Required for RBI account owner authentication",
-      value: draft.bankAccount || null,
-    },
-    {
-      id: "mode",
-      name: "Payment Mode",
-      desc: "Identifies payment channel & reversal route",
-      value: draft.paymentMode || null,
-    },
-    {
-      id: "utr",
-      name: "12-Digit Transaction UTR",
-      desc: "Critical for 1930 / CFCFRMS instant bank freeze",
-      value: draft.utrNumber || null,
-    },
-    {
-      id: "acc",
-      name: "Suspect Account / UPI",
-      desc: "Required for Section 94 BNSS debit-freeze notice",
-      value: draft.suspectAccount || null,
-    },
-    {
-      id: "phone",
-      name: "Suspect Phone / Contact",
-      desc: "Required for Section 91/94 BNSS CDR telecom tracing",
-      value: draft.suspectPhone || null,
-    },
-    {
-      id: "name",
-      name: "Suspect Name / Alias",
-      desc: "Documents criminal impersonation (BNS 319 / 318)",
-      value: draft.suspectName || null,
-    },
+    ...(isCrypto
+      ? [
+          {
+            id: "tx",
+            name: "Transaction Hash (TxID)",
+            desc: "On-chain ledger digest required under BSA Sec 63",
+            value: draft.transactionHash || null,
+          },
+          {
+            id: "swal",
+            name: "Suspect Destination Wallet",
+            desc: "Target address for AML tracing & exchange blacklist",
+            value: draft.suspectWallet || null,
+          },
+          {
+            id: "net",
+            name: "Blockchain Network",
+            desc: "e.g. Ethereum, Bitcoin, TRON, Solana",
+            value: draft.cryptoNetwork || null,
+          },
+          {
+            id: "amt",
+            name: "Estimated Value / Loss",
+            desc: "Pecuniary restitution under BNSS 503",
+            value: draft.amount ? `₹${Number(draft.amount).toLocaleString("en-IN")}` : null,
+          },
+        ]
+      : isRansomwareOrHacking
+      ? [
+          {
+            id: "target",
+            name: "Target Domain / Server IP",
+            desc: "Perimeter isolation under Sec 43/66 IT Act",
+            value: draft.targetDomain || draft.serverIp || null,
+          },
+          {
+            id: "ext",
+            name: "Encrypted Extension",
+            desc: "File extension (e.g. .locked, .phobos) for decryptor lookup",
+            value: draft.encryptedExtension || null,
+          },
+          {
+            id: "ransom",
+            name: "Ransom Contact / Wallet",
+            desc: "Attacker email, Tor portal, or crypto address",
+            value: draft.ransomWalletAddress || draft.ransomNoteFile || draft.suspectWebsite || null,
+          },
+        ]
+      : isSocialMedia
+      ? [
+          {
+            id: "imp",
+            name: "Imposter Profile URL",
+            desc: "Target for mandatory 24-hr takedown (IT Rule 3(2)(b))",
+            value: draft.imposterUrl || draft.suspectWebsite || null,
+          },
+          {
+            id: "gen",
+            name: "Your Genuine Profile",
+            desc: "Establishes identity verification for immediate removal",
+            value: draft.genuineUrl || null,
+          },
+          {
+            id: "hand",
+            name: "Impersonated Handle",
+            desc: "Offending account handle or username",
+            value: draft.suspectHandle || null,
+          },
+        ]
+      : isWomenChildren
+      ? [
+          {
+            id: "anon",
+            name: "Reporting Track",
+            desc: "NCRP Women/Child track (waives KYC if anonymous)",
+            value: draft.reportAnonymously ? "Anonymous (Track 1A)" : "Standard Report & Track (Track 1B)",
+          },
+          {
+            id: "threat",
+            name: "Intimidation / Extortion",
+            desc: "Criminal intimidation under BNS Sec 351/308",
+            value: draft.threatenedContent || draft.extortionDemand || (draft.narrative ? "Recorded in narrative" : null),
+          },
+          {
+            id: "phone",
+            name: "Suspect Contact / Handle",
+            desc: "For Section 91/94 BNSS CDR telecom tracing",
+            value: draft.suspectPhone || draft.suspectHandle || null,
+          },
+        ]
+      : [
+          // Default Financial Fraud
+          {
+            id: "amt",
+            name: "Reported Loss",
+            desc: "Mandatory under BNSS 503 for FIR & fund restitution",
+            value: draft.amount ? `₹${Number(draft.amount).toLocaleString("en-IN")}` : null,
+          },
+          {
+            id: "bank",
+            name: "Your Bank / App",
+            desc: "Needed for home bank dispute claim & chargeback",
+            value: draft.bankName || null,
+          },
+          {
+            id: "debit",
+            name: "Your Account / Mobile",
+            desc: "Required for RBI account owner authentication",
+            value: draft.bankAccount || null,
+          },
+          {
+            id: "utr",
+            name: "12-Digit Transaction UTR",
+            desc: "Critical for 1930 / CFCFRMS instant bank freeze",
+            value: draft.utrNumber || null,
+          },
+          {
+            id: "acc",
+            name: "Suspect Account / UPI",
+            desc: "Required for Section 94 BNSS debit-freeze notice",
+            value: draft.suspectAccount || null,
+          },
+          {
+            id: "mode",
+            name: "Payment Mode",
+            desc: "Identifies payment channel & reversal route",
+            value: draft.paymentMode || null,
+          },
+        ]),
+    // Common fields across all categories
     {
       id: "ch",
       name: "Platform / Channel",
@@ -991,7 +1107,7 @@ function IntakeChecklistTable({
     {
       id: "date",
       name: "Incident Date / Time",
-      desc: "Establishes 120-min Golden Hour priority & RBI window",
+      desc: "Establishes statutory chronology & 120-min Golden Hour priority",
       value: draft.incidentDate || null,
     },
   ];

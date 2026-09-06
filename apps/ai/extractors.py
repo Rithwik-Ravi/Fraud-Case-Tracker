@@ -20,11 +20,22 @@ CATEGORY_PROMPT_LIST = "\n".join([
     for c in CATEGORIES_METADATA
 ])
 
-EXTRACTION_SYSTEM_PROMPT = f"""You are CasePilot's Structured Cybercrime Extraction & Classification Engine for India's NCRP.
+CATEGORY_ENUM_LIST = " | ".join([c["id"] for c in CATEGORIES_METADATA])
+
+EXTRACTION_SYSTEM_PROMPT = f"""You are CasePilot's Structured Cybercrime Extraction & Classification Engine for India's NCRP (National Cyber Crime Reporting Portal).
 Your sole responsibility is:
-1. Classify the citizen's message into EXACTLY ONE of the official 21 categories below.
+1. Classify the citizen's message into EXACTLY ONE of the official categories below across the 3 Pillars:
+   - Women/Children Related Crime
+   - Financial Fraud
+   - Other Cyber Crime
 2. If the message mentions CBI, ED, police video call, courier contraband parcel, or digital arrest, ALWAYS classify as "digital_arrest" and set "isDigitalArrest" to true.
-3. Extract concrete factual entities mentioned into proposed facts (amounts, bank names, 12-digit UTR, payment mode, handles, apps).
+3. Extract concrete factual entities mentioned into proposed facts:
+   - Financial: fraudAmount, bankName, utrNumber (12-digit), paymentMode, beneficiaryAccount, suspectAccount
+   - Crypto: cryptoNetwork, victimWallet, suspectWallet, transactionHash, cryptoExchange
+   - Ransomware / Technical: encryptedExtension, ransomNoteFile, ransomDemanded, ransomWalletAddress, targetDomain, serverIp, defacerHandle
+   - Social Media / Impersonation: imposterUrl, genuineUrl, socialPlatform, offenderHandle, suspectHandle
+   - Mobile: maliciousApkName (.apk), deviceType, telecomOperator
+   - Common: suspectName, suspectPhone, suspectEmail, suspectWebsite, channel, incidentDate, delayReason, incidentDescription
 4. Set "moneyMoved" to true only if the citizen explicitly states money was lost, transferred, debited, or deducted.
 5. Provide a single empathetic factual acknowledgement sentence.
 
@@ -34,8 +45,8 @@ OFFICIAL NCRP CATEGORIES:
 JSON Schema:
 {{
   "classification": {{
-    "categoryId": "upi_fraud | net_banking | card_fraud | investment_scam | job_scam | loan_app_scam | sim_swap | child_safety | sextortion | cyber_blackmail | cyber_stalking | impersonation | account_takeover | malware_ransomware | other_cybercrime | digital_arrest | romance_scam | fake_customer_care | government_impersonation | courier_parcel_scam | task_scam",
-    "categoryLabel": "Exact category label",
+    "categoryId": "{CATEGORY_ENUM_LIST}",
+    "categoryLabel": "Exact category label from list",
     "parentCategory": "Financial Fraud | Women/Children | Other Cyber Crime",
     "isFinancialFraud": true | false,
     "urgency": "golden-hour | urgent | standard",
@@ -47,7 +58,7 @@ JSON Schema:
   }},
   "proposed_facts": [
     {{
-      "field": "fraudAmount | bankName | utrNumber | paymentMode | beneficiaryAccount | suspectAccount | suspectName | suspectPhone | suspectHandle | suspectWebsite | socialPlatform | offenderHandle | channel | incidentDate | delayReason | affectedService | remoteAccessApp | incidentDescription",
+      "field": "fraudAmount | bankName | utrNumber | paymentMode | beneficiaryAccount | suspectAccount | suspectName | suspectPhone | suspectHandle | suspectWebsite | socialPlatform | offenderHandle | channel | incidentDate | delayReason | affectedService | remoteAccessApp | incidentDescription | cryptoNetwork | victimWallet | suspectWallet | transactionHash | cryptoExchange | encryptedExtension | ransomNoteFile | ransomDemanded | ransomWalletAddress | targetDomain | serverIp | defacerHandle | imposterUrl | genuineUrl | maliciousApkName",
       "value": "Clean extracted value",
       "confidence": 0.98,
       "raw_quote": "Exact substring from citizen message"
@@ -186,14 +197,14 @@ class FactExtractor:
                 moneyMoved=any(k in lower for k in MONEY_MOVED_KEYWORDS)
             )
 
-        # 7. Sextortion
-        if any(kw in lower for kw in ['sextortion', 'video call nude', 'private picture leak', 'blackmailing with photo']):
-            cat = CATEGORY_LOOKUP["sextortion"]
+        # 7. Child Safety & CSAM
+        if any(kw in lower for kw in ['child', 'minor', 'csam', 'underage', 'grooming', 'child abuse']):
+            cat = CATEGORY_LOOKUP["child_safety"]
             return ClassificationProposal(
-                flow="sextortion",
-                subtype="NUDE_VIDEO_BLACKMAIL",
-                confidence=0.95,
-                reason="Intimate video call extortion detected.",
+                flow="child_safety",
+                subtype="CSAM_CHILD_PROTECTION",
+                confidence=0.98,
+                reason="Child sexual exploitation or cyber safety indicators detected.",
                 categoryId=cat["id"],
                 categoryLabel=cat["label"],
                 parentCategory=cat["parent"],
@@ -203,8 +214,42 @@ class FactExtractor:
                 moneyMoved=False
             )
 
-        # 8. Ransomware
-        if any(kw in lower for kw in ['ransomware', '.locked', 'files encrypted', 'bitcoin ransom']):
+        # 8. Sextortion
+        if any(kw in lower for kw in ['sextortion', 'video call nude', 'private picture leak', 'blackmailing with photo', 'morphing', 'morphed']):
+            cat = CATEGORY_LOOKUP["sextortion"]
+            return ClassificationProposal(
+                flow="sextortion",
+                subtype="NUDE_VIDEO_BLACKMAIL",
+                confidence=0.95,
+                reason="Intimate video call extortion or morphed media blackmail detected.",
+                categoryId=cat["id"],
+                categoryLabel=cat["label"],
+                parentCategory=cat["parent"],
+                isFinancialFraud=False,
+                urgency=cat["defaultUrgency"],
+                isDigitalArrest=False,
+                moneyMoved=False
+            )
+
+        # 9. Cryptocurrency Theft
+        if any(kw in lower for kw in ['crypto', 'bitcoin', 'ethereum', 'wallet drain', 'metamask', 'phantom', 'smart contract', 'seed phrase', 'usdt', 'txhash']):
+            cat = CATEGORY_LOOKUP["crypto_wallet_drain"]
+            return ClassificationProposal(
+                flow="crypto_wallet_drain",
+                subtype="WEB3_WALLET_DRAIN",
+                confidence=0.95,
+                reason="Cryptocurrency wallet drain or fraudulent smart contract transfer detected.",
+                categoryId=cat["id"],
+                categoryLabel=cat["label"],
+                parentCategory=cat["parent"],
+                isFinancialFraud=True,
+                urgency=cat["defaultUrgency"],
+                isDigitalArrest=False,
+                moneyMoved=True
+            )
+
+        # 10. Ransomware
+        if any(kw in lower for kw in ['ransomware', '.locked', 'files encrypted', 'bitcoin ransom', 'ransom note']):
             cat = CATEGORY_LOOKUP["malware_ransomware"]
             return ClassificationProposal(
                 flow="malware_ransomware",
@@ -220,7 +265,57 @@ class FactExtractor:
                 moneyMoved=False
             )
 
-        # 9. Account Hacking
+        # 11. Website Defacement & Server Breach
+        if any(kw in lower for kw in ['defaced', 'website hacked', 'homepage changed', 'server breach', 'database breach']):
+            cat = CATEGORY_LOOKUP.get("hack_defacement", CATEGORY_LOOKUP["other_cybercrime"])
+            return ClassificationProposal(
+                flow=cat["id"],
+                subtype="WEBSITE_DEFACEMENT",
+                confidence=0.95,
+                reason="Website defacement or server intrusion detected.",
+                categoryId=cat["id"],
+                categoryLabel=cat["label"],
+                parentCategory=cat["parent"],
+                isFinancialFraud=False,
+                urgency=cat["defaultUrgency"],
+                isDigitalArrest=False,
+                moneyMoved=False
+            )
+
+        # 12. Malicious Mobile APK
+        if any(kw in lower for kw in ['.apk', 'malicious apk', 'installed app', 'electricity bill apk']):
+            cat = CATEGORY_LOOKUP.get("mob_malicious_apk", CATEGORY_LOOKUP["other_cybercrime"])
+            return ClassificationProposal(
+                flow=cat["id"],
+                subtype="MALICIOUS_APK_SPYWARE",
+                confidence=0.92,
+                reason="Malicious Android APK installation detected.",
+                categoryId=cat["id"],
+                categoryLabel=cat["label"],
+                parentCategory=cat["parent"],
+                isFinancialFraud=False,
+                urgency=cat["defaultUrgency"],
+                isDigitalArrest=False,
+                moneyMoved=any(k in lower for k in MONEY_MOVED_KEYWORDS)
+            )
+
+        # 13. Account Hacking & Impersonation
+        if any(kw in lower for kw in ['impersonating', 'fake profile', 'counterfeit account', 'using my photos']):
+            cat = CATEGORY_LOOKUP["impersonation"]
+            return ClassificationProposal(
+                flow="impersonation",
+                subtype="IMPERSONATION_PROFILE",
+                confidence=0.90,
+                reason="Impersonation or fake profile creation detected.",
+                categoryId=cat["id"],
+                categoryLabel=cat["label"],
+                parentCategory=cat["parent"],
+                isFinancialFraud=False,
+                urgency=cat["defaultUrgency"],
+                isDigitalArrest=False,
+                moneyMoved=False
+            )
+
         if any(kw in lower for kw in ['hacked', 'password changed', '2fa bypassed', 'account takeover', 'recovery email changed']):
             cat = CATEGORY_LOOKUP["account_takeover"]
             return ClassificationProposal(
@@ -438,6 +533,64 @@ class FactExtractor:
             facts.append(ProposedFact(field='incidentDate', value='Today', confidence=0.90, source='local_regex'))
         elif 'yesterday' in lower or 'kal' in lower:
             facts.append(ProposedFact(field='incidentDate', value='Yesterday', confidence=0.90, source='local_regex'))
+
+        # 12. Cryptocurrency Entities
+        if any(w in lower for w in ['tron', 'trc20']):
+            facts.append(ProposedFact(field='cryptoNetwork', value='TRON', confidence=0.98, source='local_regex'))
+        elif any(w in lower for w in ['bitcoin', 'btc']):
+            facts.append(ProposedFact(field='cryptoNetwork', value='Bitcoin', confidence=0.98, source='local_regex'))
+        elif any(w in lower for w in ['ethereum', 'eth', 'erc20']):
+            facts.append(ProposedFact(field='cryptoNetwork', value='Ethereum', confidence=0.98, source='local_regex'))
+        elif any(w in lower for w in ['solana', 'sol']):
+            facts.append(ProposedFact(field='cryptoNetwork', value='Solana', confidence=0.98, source='local_regex'))
+
+        if 'binance' in lower:
+            facts.append(ProposedFact(field='cryptoExchange', value='Binance', confidence=0.98, source='local_regex'))
+        elif 'wazirx' in lower:
+            facts.append(ProposedFact(field='cryptoExchange', value='WazirX', confidence=0.98, source='local_regex'))
+        elif 'coindcx' in lower:
+            facts.append(ProposedFact(field='cryptoExchange', value='CoinDCX', confidence=0.98, source='local_regex'))
+
+        crypto_wallet_match = re.search(r'\b(T[A-Za-z0-9]{33}|bc1[a-zA-HJ-NP-Z0-9]{39,59}|0x[a-fA-F0-9]{40})\b', text)
+        if crypto_wallet_match:
+            facts.append(ProposedFact(field='suspectWallet', value=crypto_wallet_match.group(1), confidence=0.98, source='local_regex'))
+
+        tx_hash_match = re.search(r'\b(?:hash|txid|txhash)[\s:]*(0x[a-fA-F0-9]{16,64}|[a-fA-F0-9]{64})\b', text, re.IGNORECASE)
+        if tx_hash_match:
+            facts.append(ProposedFact(field='transactionHash', value=tx_hash_match.group(1), confidence=0.98, source='local_regex'))
+
+        # 13. Ransomware Entities
+        ext_match = re.search(r'\.([a-zA-Z0-9_-]{3,15})\b', text)
+        if any(r_kw in lower for r_kw in ['encrypted with extension', 'extension .', 'files encrypted']):
+            m = re.search(r'extension\s+\.([a-zA-Z0-9_-]+)', text, re.IGNORECASE)
+            if m:
+                facts.append(ProposedFact(field='encryptedExtension', value=f".{m.group(1)}", confidence=0.98, source='local_regex'))
+
+        note_match = re.search(r'\b([A-Za-z0-9_.-]*(?:README|RESTORE|DECRYPT|HOW_TO)[\w_.-]*\.(?:txt|html))\b', text, re.IGNORECASE)
+        if note_match:
+            facts.append(ProposedFact(field='ransomNoteFile', value=note_match.group(1), confidence=0.98, source='local_regex'))
+
+        ransom_dem_match = re.search(r'\b(\d+(?:\.\d+)?\s*(?:btc|eth|usdt|monero|xmr))\b', text, re.IGNORECASE)
+        if ransom_dem_match:
+            facts.append(ProposedFact(field='ransomDemanded', value=ransom_dem_match.group(1), confidence=0.98, source='local_regex'))
+
+        # 14. Website Defacement & Server Breach
+        domain_match = re.search(r'\b([a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.(?:gov\.in|nic\.in|org\.in|edu\.in|com|org|in))\b', text, re.IGNORECASE)
+        if domain_match:
+            facts.append(ProposedFact(field='targetDomain', value=domain_match.group(1), confidence=0.98, source='local_regex'))
+
+        ip_match = re.search(r'\b((?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?))\b', text)
+        if ip_match:
+            facts.append(ProposedFact(field='serverIp', value=ip_match.group(1), confidence=0.95, source='local_regex'))
+
+        defacer_match = re.search(r'(?:defaced by|banner by|hacked by)\s+([A-Za-z0-9_.-]+)', text, re.IGNORECASE)
+        if defacer_match:
+            facts.append(ProposedFact(field='defacerHandle', value=defacer_match.group(1), confidence=0.98, source='local_regex'))
+
+        # 15. Mobile Malicious APK
+        apk_match = re.search(r'\b([a-zA-Z0-9_.-]+\.apk)\b', text, re.IGNORECASE)
+        if apk_match:
+            facts.append(ProposedFact(field='maliciousApkName', value=apk_match.group(1), confidence=0.99, source='local_regex'))
 
         return facts
 

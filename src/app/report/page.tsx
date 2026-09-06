@@ -55,6 +55,18 @@ import {
   Lock,
   Calendar,
   Layers,
+  EyeOff,
+  Shield,
+  ShieldCheck,
+  HeartHandshake,
+  Server,
+  Terminal,
+  LockKeyhole,
+  Coins,
+  ExternalLink,
+  HelpCircle,
+  AlertCircle,
+  HardDrive,
 } from "lucide-react";
 
 type ReportStep = "NARRATIVE" | "FREEZE" | "DETAILS" | "KYC" | "EVIDENCE" | "REVIEW" | "SUCCESS";
@@ -92,7 +104,8 @@ export default function ReportPage() {
   const [triageLoading, setTriageLoading] = useState(false);
   const [extractedPills, setExtractedPills] = useState<string[]>([]);
 
-  // Step 2: Banking Freeze state (Golden Hour)
+  // Step 2: Priority Desk state
+  // 2A: Banking Freeze state (Golden Hour)
   const [bankName, setBankName] = useState("");
   const [bankAccount, setBankAccount] = useState("");
   const [suspectAccount, setSuspectAccount] = useState("");
@@ -102,8 +115,11 @@ export default function ReportPage() {
   const [freezeRequested, setFreezeRequested] = useState(false);
   const [freezeLoading, setFreezeLoading] = useState(false);
   const [freezeMessage, setFreezeMessage] = useState("");
+  // 2B & 2C: Safety Desk & System Containment Desk acknowledgments
+  const [safetyDeskAcknowledged, setSafetyDeskAcknowledged] = useState<boolean>(false);
+  const [containmentAcknowledged, setContainmentAcknowledged] = useState<boolean>(false);
 
-  // Step 3: Structured Incident & Suspect Details
+  // Step 3: Structured Incident & Suspect Details (Common NCRP Fields)
   const [platformChannel, setPlatformChannel] = useState<string>("WhatsApp");
   const [incidentDate, setIncidentDate] = useState<string>("");
   const [delayReason, setDelayReason] = useState<string>("Reported promptly (<24 hours)");
@@ -113,7 +129,34 @@ export default function ReportPage() {
   const [suspectWebsite, setSuspectWebsite] = useState<string>("");
   const [suspectDetails, setSuspectDetails] = useState<string>("");
 
-  // Step 4: Complainant KYC & Police Station Jurisdiction
+  // Category-Specific Dynamic Fields
+  const [cryptoNetwork, setCryptoNetwork] = useState<string>("TRC-20 (Tron)");
+  const [victimWallet, setVictimWallet] = useState<string>("");
+  const [suspectWallet, setSuspectWallet] = useState<string>("");
+  const [transactionHash, setTransactionHash] = useState<string>("");
+  const [cryptoExchange, setCryptoExchange] = useState<string>("");
+
+  const [encryptedExtension, setEncryptedExtension] = useState<string>("");
+  const [ransomNoteFile, setRansomNoteFile] = useState<string>("");
+  const [ransomDemanded, setRansomDemanded] = useState<string>("");
+  const [ransomWalletAddress, setRansomWalletAddress] = useState<string>("");
+
+  const [targetDomain, setTargetDomain] = useState<string>("");
+  const [serverIp, setServerIp] = useState<string>("");
+  const [defacerHandle, setDefacerHandle] = useState<string>("");
+
+  const [imposterUrl, setImposterUrl] = useState<string>("");
+  const [genuineUrl, setGenuineUrl] = useState<string>("");
+  const [socialPlatform, setSocialPlatform] = useState<string>("Instagram");
+
+  const [maliciousApkName, setMaliciousApkName] = useState<string>("");
+
+  const [threatenedContent, setThreatenedContent] = useState<string>("");
+  const [extortionDemand, setExtortionDemand] = useState<string>("");
+  const [harassmentMedium, setHarassmentMedium] = useState<string>("WhatsApp");
+
+  // Step 4: Complainant KYC & Police Station Jurisdiction (Track 1A vs Track 1B)
+  const [reportAnonymously, setReportAnonymously] = useState<boolean>(false);
   const [fullName, setFullName] = useState<string>("");
   const [email, setEmail] = useState<string>("");
   const [phone, setPhone] = useState<string>("");
@@ -167,10 +210,41 @@ export default function ReportPage() {
     if (draft.suspectWebsite) setSuspectWebsite(draft.suspectWebsite);
     if (draft.channel) setPlatformChannel(draft.channel);
     if (draft.incidentDate) setIncidentDate(draft.incidentDate);
+    if (draft.reportAnonymously !== undefined) setReportAnonymously(Boolean(draft.reportAnonymously));
 
+    // Category-specific parameters
+    if (draft.categorySpecificFields) {
+      const cs = draft.categorySpecificFields;
+      if (cs.cryptoNetwork) setCryptoNetwork(cs.cryptoNetwork);
+      if (cs.victimWallet) setVictimWallet(cs.victimWallet);
+      if (cs.suspectWallet) setSuspectWallet(cs.suspectWallet);
+      if (cs.transactionHash) setTransactionHash(cs.transactionHash);
+      if (cs.cryptoExchange) setCryptoExchange(cs.cryptoExchange);
+
+      if (cs.encryptedExtension) setEncryptedExtension(cs.encryptedExtension);
+      if (cs.ransomNoteFile) setRansomNoteFile(cs.ransomNoteFile);
+      if (cs.ransomDemanded) setRansomDemanded(cs.ransomDemanded);
+      if (cs.ransomWalletAddress) setRansomWalletAddress(cs.ransomWalletAddress);
+
+      if (cs.targetDomain) setTargetDomain(cs.targetDomain);
+      if (cs.serverIp) setServerIp(cs.serverIp);
+      if (cs.defacerHandle) setDefacerHandle(cs.defacerHandle);
+
+      if (cs.imposterUrl) setImposterUrl(cs.imposterUrl);
+      if (cs.genuineUrl) setGenuineUrl(cs.genuineUrl);
+      if (cs.socialPlatform) setSocialPlatform(cs.socialPlatform);
+
+      if (cs.maliciousApkName) setMaliciousApkName(cs.maliciousApkName);
+
+      if (cs.threatenedContent) setThreatenedContent(cs.threatenedContent);
+      if (cs.extortionDemand) setExtortionDemand(cs.extortionDemand);
+      if (cs.harassmentMedium) setHarassmentMedium(cs.harassmentMedium);
+    }
+
+    let foundCategory: Category | undefined;
     if (draft.categoryId) {
-      const found = CATEGORIES.find((c) => c.id === draft.categoryId);
-      if (found) setSelectedCategory(found);
+      foundCategory = CATEGORIES.find((c) => c.id === draft.categoryId);
+      if (foundCategory) setSelectedCategory(foundCategory);
     }
 
     const pills: string[] = [];
@@ -181,14 +255,27 @@ export default function ReportPage() {
     if (draft.suspectAccount) pills.push(`UPI: ${draft.suspectAccount}`);
     if (draft.suspectPhone) pills.push(`Suspect: ${draft.suspectPhone}`);
     if (draft.suspectName) pills.push(`Alias: ${draft.suspectName}`);
+    if (draft.categorySpecificFields?.suspectWallet) {
+      pills.push(`Wallet: ${draft.categorySpecificFields.suspectWallet.slice(0, 10)}...`);
+    }
+    if (draft.categorySpecificFields?.encryptedExtension) {
+      pills.push(`Ext: ${draft.categorySpecificFields.encryptedExtension}`);
+    }
+    if (draft.categorySpecificFields?.targetDomain) {
+      pills.push(`Target: ${draft.categorySpecificFields.targetDomain}`);
+    }
+    if (draft.categorySpecificFields?.imposterUrl) {
+      pills.push(`Imposter: ${draft.categorySpecificFields.imposterUrl}`);
+    }
     if (pills.length > 0) setExtractedPills(pills);
 
-    setDraftBannerMessage("✨ Auto-filled 11 statutory details from your AI Assistant into this official complaint form!");
+    setDraftBannerMessage("✨ Auto-filled statutory incident facts & category parameters from your AI Assistant!");
 
     // Advance to next step only if user is currently sitting on the initial empty narrative screen
     setCurrentStep((prev) => {
       if (prev === "NARRATIVE") {
-        return draft.amount && Number(draft.amount) > 0 ? "FREEZE" : "DETAILS";
+        const desk = foundCategory?.priorityDeskType || (draft.amount && Number(draft.amount) > 0 ? "banking_freeze" : "none");
+        return desk !== "none" ? "FREEZE" : "DETAILS";
       }
       return prev; // keep the user on their current step if they are already on FREEZE or DETAILS!
     });
@@ -267,6 +354,31 @@ export default function ReportPage() {
     setSuspectDetails("");
     setFreezeRequested(false);
     setFreezeMessage("");
+    setSafetyDeskAcknowledged(false);
+    setContainmentAcknowledged(false);
+
+    // Reset Category-Specific Fields
+    setCryptoNetwork("TRC-20 (Tron)");
+    setVictimWallet("");
+    setSuspectWallet("");
+    setTransactionHash("");
+    setCryptoExchange("");
+    setEncryptedExtension("");
+    setRansomNoteFile("");
+    setRansomDemanded("");
+    setRansomWalletAddress("");
+    setTargetDomain("");
+    setServerIp("");
+    setDefacerHandle("");
+    setImposterUrl("");
+    setGenuineUrl("");
+    setSocialPlatform("Instagram");
+    setMaliciousApkName("");
+    setThreatenedContent("");
+    setExtortionDemand("");
+    setHarassmentMedium("WhatsApp");
+    setReportAnonymously(false);
+
     setEvidenceFiles([]);
     setUndertakingAccepted(false);
     setAckNumber(null);
@@ -322,12 +434,23 @@ export default function ReportPage() {
 
     row("Filed at:", new Date().toLocaleString("en-IN"));
     if (selectedCategory) {
-      row("Official Category:", selectedCategory.label);
-      row("Parent Classification:", selectedCategory.parent);
+      const sectionName = selectedCategory.section === "WOMEN_CHILDREN"
+        ? "Women / Children Related Crime"
+        : selectedCategory.section === "FINANCIAL"
+        ? "Financial Fraud"
+        : "Other Cyber Crime";
+      row("NCRP Statutory Pillar:", sectionName);
+      row("Official Subcategory:", selectedCategory.subCategory || selectedCategory.label);
+      if (selectedCategory.statutoryCitations && selectedCategory.statutoryCitations.length > 0) {
+        row("Applicable Laws:", selectedCategory.statutoryCitations.slice(0, 2).join(", "));
+      }
     }
     if (triageResult) {
       row("Statutory Urgency:", triageResult.urgency.toUpperCase());
       row("Classification Engine:", triageResult.source === "ai" ? "AI-assisted (gpt-4o-mini)" : "Rule-based engine");
+    }
+    if (reportAnonymously) {
+      row("NCRP Track:", "Track 1A (Report Anonymously - Identity Withheld)");
     }
     if (amount) {
       row("Reported Loss:", `\u20B9${Number(amount).toLocaleString("en-IN")}`);
@@ -353,6 +476,85 @@ export default function ReportPage() {
     if (suspectHandle) row("Suspect Handle / Link:", suspectHandle);
     if (suspectWebsite) row("Suspect Malicious URL:", suspectWebsite);
 
+    // Dynamic category-specific particulars
+    if (cryptoNetwork || suspectWallet || transactionHash) {
+      y += 2;
+      doc.setFillColor(240, 244, 248);
+      doc.rect(14, y, pageW - 28, 6, "F");
+      doc.setFont("helvetica", "bold"); doc.setFontSize(9);
+      doc.setTextColor(20, 60, 110);
+      doc.text("CRYPTOCURRENCY & BLOCKCHAIN PARAMETERS", 16, y + 4.5);
+      doc.setTextColor(11, 12, 12);
+      y += 9;
+
+      if (cryptoNetwork) row("Blockchain Network:", cryptoNetwork);
+      if (suspectWallet) row("Suspect Wallet:", suspectWallet);
+      if (transactionHash) row("Transaction Hash (TxID):", transactionHash);
+      if (victimWallet) row("Complainant Wallet:", victimWallet);
+      if (cryptoExchange) row("Exchange Involved:", cryptoExchange);
+    }
+
+    if (encryptedExtension || ransomDemanded) {
+      y += 2;
+      doc.setFillColor(240, 244, 248);
+      doc.rect(14, y, pageW - 28, 6, "F");
+      doc.setFont("helvetica", "bold"); doc.setFontSize(9);
+      doc.setTextColor(20, 60, 110);
+      doc.text("RANSOMWARE ATTACK PARAMETERS", 16, y + 4.5);
+      doc.setTextColor(11, 12, 12);
+      y += 9;
+
+      if (encryptedExtension) row("Encrypted Extension:", encryptedExtension);
+      if (ransomNoteFile) row("Ransom Note File:", ransomNoteFile);
+      if (ransomDemanded) row("Ransom Demand:", ransomDemanded);
+      if (ransomWalletAddress) row("Extortion Wallet / URL:", ransomWalletAddress);
+    }
+
+    if (targetDomain || defacerHandle) {
+      y += 2;
+      doc.setFillColor(240, 244, 248);
+      doc.rect(14, y, pageW - 28, 6, "F");
+      doc.setFont("helvetica", "bold"); doc.setFontSize(9);
+      doc.setTextColor(20, 60, 110);
+      doc.text("INFRASTRUCTURE & DEFACEMENT PARAMETERS", 16, y + 4.5);
+      doc.setTextColor(11, 12, 12);
+      y += 9;
+
+      if (targetDomain) row("Target Domain:", targetDomain);
+      if (serverIp) row("Host Server IP:", serverIp);
+      if (defacerHandle) row("Defacer Alias:", defacerHandle);
+    }
+
+    if (imposterUrl || genuineUrl) {
+      y += 2;
+      doc.setFillColor(240, 244, 248);
+      doc.rect(14, y, pageW - 28, 6, "F");
+      doc.setFont("helvetica", "bold"); doc.setFontSize(9);
+      doc.setTextColor(20, 60, 110);
+      doc.text("SOCIAL MEDIA IMPERSONATION PARTICULARS", 16, y + 4.5);
+      doc.setTextColor(11, 12, 12);
+      y += 9;
+
+      if (socialPlatform) row("Platform:", socialPlatform);
+      if (imposterUrl) row("Imposter Profile:", imposterUrl);
+      if (genuineUrl) row("Genuine Profile:", genuineUrl);
+    }
+
+    if (threatenedContent || extortionDemand) {
+      y += 2;
+      doc.setFillColor(240, 244, 248);
+      doc.rect(14, y, pageW - 28, 6, "F");
+      doc.setFont("helvetica", "bold"); doc.setFontSize(9);
+      doc.setTextColor(20, 60, 110);
+      doc.text("CYBER SAFETY & HARASSMENT PARTICULARS", 16, y + 4.5);
+      doc.setTextColor(11, 12, 12);
+      y += 9;
+
+      if (harassmentMedium) row("Harassment Medium:", harassmentMedium);
+      if (threatenedContent) row("Threatened Content:", threatenedContent);
+      if (extortionDemand) row("Coercion Demand:", extortionDemand);
+    }
+
     y += 2;
     doc.setFillColor(240, 244, 248);
     doc.rect(14, y, pageW - 28, 6, "F");
@@ -362,10 +564,14 @@ export default function ReportPage() {
     doc.setTextColor(11, 12, 12);
     y += 9;
 
-    if (fullName) row("Complainant Name:", fullName);
-    row("Registered Mobile:", phone || accountPhone || "Verified in session");
-    if (email) row("Complainant Email:", email);
-    if (idType && idNumber) row("National ID Proof:", `${idType} (${idNumber})`);
+    if (reportAnonymously) {
+      row("Complainant Status:", "PROTECTED ANONYMOUS (Track 1A - Identity Withheld)");
+    } else {
+      if (fullName) row("Complainant Name:", fullName);
+      row("Registered Mobile:", phone || accountPhone || "Verified in session");
+      if (email) row("Complainant Email:", email);
+      if (idType && idNumber) row("National ID Proof:", `${idType} (${idNumber})`);
+    }
     row("Jurisdiction State:", stateName);
     row("Police District:", district);
     row("Assigned Cyber Station:", policeStation);
@@ -485,6 +691,33 @@ export default function ReportPage() {
       if (ef.suspectWebsite) setSuspectWebsite(ef.suspectWebsite);
       if (ef.incidentDate) setIncidentDate(ef.incidentDate);
       if (ef.delayReason) setDelayReason(ef.delayReason);
+
+      // Category-Specific Dynamic Fields (nested or direct)
+      const cs = (ef.categorySpecificFields || ef) as Record<string, any>;
+      if (cs.cryptoNetwork) setCryptoNetwork(cs.cryptoNetwork);
+      if (cs.victimWallet) setVictimWallet(cs.victimWallet);
+      if (cs.suspectWallet) setSuspectWallet(cs.suspectWallet);
+      if (cs.transactionHash) setTransactionHash(cs.transactionHash);
+      if (cs.cryptoExchange) setCryptoExchange(cs.cryptoExchange);
+
+      if (cs.encryptedExtension) setEncryptedExtension(cs.encryptedExtension);
+      if (cs.ransomNoteFile) setRansomNoteFile(cs.ransomNoteFile);
+      if (cs.ransomDemanded) setRansomDemanded(cs.ransomDemanded);
+      if (cs.ransomWalletAddress) setRansomWalletAddress(cs.ransomWalletAddress);
+
+      if (cs.targetDomain) setTargetDomain(cs.targetDomain);
+      if (cs.serverIp) setServerIp(cs.serverIp);
+      if (cs.defacerHandle) setDefacerHandle(cs.defacerHandle);
+
+      if (cs.imposterUrl) setImposterUrl(cs.imposterUrl);
+      if (cs.genuineUrl) setGenuineUrl(cs.genuineUrl);
+      if (cs.socialPlatform) setSocialPlatform(cs.socialPlatform);
+
+      if (cs.maliciousApkName) setMaliciousApkName(cs.maliciousApkName);
+
+      if (cs.threatenedContent) setThreatenedContent(cs.threatenedContent);
+      if (cs.extortionDemand) setExtortionDemand(cs.extortionDemand);
+      if (cs.harassmentMedium) setHarassmentMedium(cs.harassmentMedium);
     } else if (presetAmount) {
       setAmount(presetAmount.toString());
     } else if (result.detectedAmount) {
@@ -495,8 +728,13 @@ export default function ReportPage() {
       setExtractedPills(result.extractedPills);
     }
 
-    // Advance to next step (Golden Hour Freeze if money moved, otherwise Details)
-    if (result.isFinancialFraud && result.moneyMoved) {
+    // Dynamic Step 2 Routing:
+    // 1. Banking Freeze (Financial Fraud / money moved)
+    // 2. Emergency Safety Desk (Women / Child Safety / Sextortion / Harassment)
+    // 3. System Containment Desk (Ransomware / Hacking / Defacement)
+    // 4. None -> Skip directly to Details
+    const desk = result.priorityDeskType || cat.priorityDeskType || (result.isFinancialFraud && result.moneyMoved ? "banking_freeze" : "none");
+    if (desk !== "none") {
       setCurrentStep("FREEZE");
     } else {
       setCurrentStep("DETAILS");
@@ -605,6 +843,9 @@ export default function ReportPage() {
         categoryId: selectedCategory.id,
         categoryLabel: selectedCategory.label,
         parentCategory: selectedCategory.parent,
+        section: selectedCategory.section,
+        subCategory: selectedCategory.subCategory,
+        reportAnonymously,
         urgency: triageResult?.urgency || selectedCategory.defaultUrgency,
         amount: amount ? parseFloat(amount) : undefined,
         bankAccount: bankAccount || undefined,
@@ -616,6 +857,27 @@ export default function ReportPage() {
         incidentDate: incidentDate || undefined,
         platformChannel: platformChannel || undefined,
         delayReason: delayReason || undefined,
+        categorySpecificFields: {
+          cryptoNetwork: cryptoNetwork || undefined,
+          victimWallet: victimWallet || undefined,
+          suspectWallet: suspectWallet || undefined,
+          transactionHash: transactionHash || undefined,
+          cryptoExchange: cryptoExchange || undefined,
+          encryptedExtension: encryptedExtension || undefined,
+          ransomNoteFile: ransomNoteFile || undefined,
+          ransomDemanded: ransomDemanded || undefined,
+          ransomWalletAddress: ransomWalletAddress || undefined,
+          targetDomain: targetDomain || undefined,
+          serverIp: serverIp || undefined,
+          defacerHandle: defacerHandle || undefined,
+          imposterUrl: imposterUrl || undefined,
+          genuineUrl: genuineUrl || undefined,
+          socialPlatform: socialPlatform || undefined,
+          maliciousApkName: maliciousApkName || undefined,
+          threatenedContent: threatenedContent || undefined,
+          extortionDemand: extortionDemand || undefined,
+          harassmentMedium: harassmentMedium || undefined,
+        },
         suspectDetails: {
           name: suspectName || undefined,
           mobile: suspectPhone || undefined,
@@ -624,23 +886,29 @@ export default function ReportPage() {
           website: suspectWebsite || undefined,
           details: suspectDetails || undefined,
         },
-        complainantKYC: {
-          fullName: fullName || undefined,
-          email: email || undefined,
-          phone: phone || accountPhone || undefined,
-          gender: gender || undefined,
-          dob: dob || undefined,
-          idType: idType || undefined,
-          idNumber: idNumber || undefined,
-          state: stateName || undefined,
-          district: district || undefined,
-          policeStation: policeStation || undefined,
-          address: address || undefined,
-          pincode: pincode || undefined,
-        },
+        complainantKYC: reportAnonymously
+          ? {
+              state: stateName || undefined,
+              district: district || undefined,
+              policeStation: policeStation || undefined,
+            }
+          : {
+              fullName: fullName || undefined,
+              email: email || undefined,
+              phone: phone || accountPhone || undefined,
+              gender: gender || undefined,
+              dob: dob || undefined,
+              idType: idType || undefined,
+              idNumber: idNumber || undefined,
+              state: stateName || undefined,
+              district: district || undefined,
+              policeStation: policeStation || undefined,
+              address: address || undefined,
+              pincode: pincode || undefined,
+            },
         undertakingAccepted,
         evidenceFiles,
-        phone: phone || accountPhone || undefined,
+        phone: reportAnonymously ? undefined : (phone || accountPhone || undefined),
       });
 
       if (!res.success || !res.ack) {
@@ -820,7 +1088,24 @@ export default function ReportPage() {
         <ol className="flex flex-wrap items-center gap-x-2 gap-y-2 text-xs sm:text-sm" aria-label="Progress">
           {[
             { key: "NARRATIVE" as ReportStep, num: 1, labelKey: "report.stepIncident", fallback: "Incident" },
-            { key: "FREEZE" as ReportStep, num: 2, labelKey: "report.stepFreeze", fallback: "Freeze" },
+            {
+              key: "FREEZE" as ReportStep,
+              num: 2,
+              labelKey:
+                selectedCategory?.priorityDeskType === "safety_desk"
+                  ? "report.stepSafety"
+                  : selectedCategory?.priorityDeskType === "system_containment"
+                  ? "report.stepContainment"
+                  : "report.stepFreeze",
+              fallback:
+                selectedCategory?.priorityDeskType === "safety_desk"
+                  ? "Safety Desk"
+                  : selectedCategory?.priorityDeskType === "system_containment"
+                  ? "Containment"
+                  : selectedCategory?.priorityDeskType === "banking_freeze"
+                  ? "Freeze"
+                  : "Priority Desk",
+            },
             { key: "DETAILS" as ReportStep, num: 3, labelKey: "report.stepSuspect", fallback: "Suspect" },
             { key: "KYC" as ReportStep, num: 4, labelKey: "report.stepKyc", fallback: "KYC & Station" },
             { key: "EVIDENCE" as ReportStep, num: 5, labelKey: "report.stepEvidence", fallback: "Evidence" },
@@ -1093,168 +1378,386 @@ export default function ReportPage() {
         </div>
       )}
 
-      {/* STEP 2: GOLDEN HOUR FREEZE REQUEST (CONDITIONAL) */}
+      {/* STEP 2: DYNAMIC PRIORITY DESK (BANKING FREEZE / SAFETY DESK / SYSTEM CONTAINMENT) */}
       {currentStep === "FREEZE" && (
         <div className="space-y-6">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full bg-danger-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-danger-700 ring-1 ring-danger-200 mb-2">
-              <Clock className="h-3.5 w-3.5" />
-              Golden Hour Emergency Freeze
-            </div>
-            <h1 className="text-3xl font-bold tracking-tight text-ink-900 sm:text-4xl">
-              Stop the money before it moves
-            </h1>
-            <p className="mt-2 text-base text-ink-600">
-              The first 120 minutes decide everything. These details were auto-filled by AI from your story. Confirming them transmits an immediate lien alert across India's CFCFRMS bank network.
-            </p>
-          </div>
-
-          {/* AI Extracted Entity Pills preview */}
-          {extractedPills.length > 0 && (
-            <div className="rounded-ux-lg border border-brand-200 bg-brand-50/60 p-3.5">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-brand-800 uppercase tracking-wider mb-2">
-                <Sparkles className="h-3.5 w-3.5 text-brand-600" />
-                <span>AI Extracted Facts (Auto-Populated)</span>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {extractedPills.map((pill, idx) => (
-                  <span key={idx} className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-brand-700 border border-brand-200 shadow-2xs">
-                    {pill}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <Card className="p-6">
-            <form onSubmit={handleFreezeSubmit} className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="bank-name" className="block text-sm font-semibold text-ink-900 mb-1">
-                    Your Bank / Payment App
-                  </label>
-                  <input
-                    id="bank-name"
-                    type="text"
-                    required
-                    value={bankName}
-                    onChange={(e) => setBankName(e.target.value)}
-                    placeholder="e.g., State Bank of India / HDFC"
-                    className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2.5 text-base focus:border-brand-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="bank-acc" className="block text-sm font-semibold text-ink-900 mb-1">
-                    Your Debited Account / UPI ID
-                  </label>
-                  <input
-                    id="bank-acc"
-                    type="text"
-                    value={bankAccount}
-                    onChange={(e) => setBankAccount(e.target.value)}
-                    placeholder="e.g., 9876543210@ybl or A/C No. (Optional for freeze)"
-                    className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2.5 text-base focus:border-brand-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div>
-                  <label htmlFor="suspect-acc" className="block text-sm font-semibold text-ink-900 mb-1">
-                    Suspect Account / UPI ID
-                  </label>
-                  <input
-                    id="suspect-acc"
-                    type="text"
-                    value={suspectAccount}
-                    onChange={(e) => setSuspectAccount(e.target.value)}
-                    placeholder="e.g., fraud.merchant@axisbank"
-                    className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2.5 text-base focus:border-brand-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="amount" className="block text-sm font-semibold text-ink-900 mb-1">
-                    Amount Lost (₹)
-                  </label>
-                  <input
-                    id="amount"
-                    type="number"
-                    required
-                    value={amount}
-                    onChange={(e) => setAmount(e.target.value)}
-                    placeholder="62000"
-                    className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2.5 text-base font-semibold focus:border-brand-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="payment-mode" className="block text-sm font-semibold text-ink-900 mb-1">
-                    Payment Mode
-                  </label>
-                  <select
-                    id="payment-mode"
-                    value={paymentMode}
-                    onChange={(e) => setPaymentMode(e.target.value)}
-                    className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2.5 text-base bg-white focus:border-brand-500 focus:outline-none"
-                  >
-                    <option value="UPI">UPI (GPay/PhonePe/Paytm)</option>
-                    <option value="Net Banking">Net Banking (IMPS/NEFT/RTGS)</option>
-                    <option value="Credit/Debit Card">Credit / Debit Card</option>
-                    <option value="AEPS">AEPS / Biometric</option>
-                    <option value="Wallet">Prepaid Wallet</option>
-                    <option value="Crypto">Cryptocurrency</option>
-                  </select>
-                </div>
-              </div>
-
+          {/* 2A: EMERGENCY SAFETY DESK (WOMEN / CHILD SAFETY / SEXTORTION / CYBER BULLYING) */}
+          {selectedCategory?.priorityDeskType === "safety_desk" ? (
+            <div className="space-y-6">
               <div>
-                <label htmlFor="utr" className="block text-sm font-semibold text-ink-900 mb-1">
-                  12-Digit Transaction Reference / UTR Number
-                </label>
-                <input
-                  id="utr"
-                  type="text"
-                  value={transactionId}
-                  onChange={(e) => setTransactionId(e.target.value)}
-                  placeholder="12-digit UTR from SMS or UPI app receipt"
-                  className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2.5 text-base focus:border-brand-500 focus:outline-none"
-                />
+                <div className="inline-flex items-center gap-2 rounded-full bg-purple-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-purple-800 ring-1 ring-purple-300 mb-2">
+                  <ShieldCheck className="h-3.5 w-3.5 text-purple-700" />
+                  NCRP Emergency Safety & Rapid Takedown Protocol
+                </div>
+                <h1 className="text-3xl font-bold tracking-tight text-ink-900 sm:text-4xl">
+                  Your Safety & Privacy Come First
+                </h1>
+                <p className="mt-2 text-base text-ink-600">
+                  You are not at fault. Law enforcement cyber cells treat online harassment, intimate image extortion, and stalking with strict confidentiality and high priority.
+                </p>
               </div>
 
-              {errorMessage && (
-                <div className="rounded-ux bg-danger-50 p-3 text-sm font-medium text-danger-700 border border-danger-200">
-                  {errorMessage}
+              {/* Legal Protection & Rapid Takedown Banner */}
+              <div className="rounded-ux-lg border-2 border-purple-300 bg-purple-50/70 p-5 shadow-xs">
+                <div className="flex items-start gap-3.5">
+                  <HeartHandshake className="h-6 w-6 text-purple-700 shrink-0 mt-0.5" />
+                  <div>
+                    <h3 className="text-base font-bold text-purple-950">
+                      Mandatory 24-Hour Social Media Takedown Rule
+                    </h3>
+                    <p className="mt-1 text-xs text-purple-900 leading-relaxed">
+                      Under <strong>Rule 3(2)(b) of the Information Technology (Intermediary Guidelines) Rules, 2021</strong>, major social media platforms (Instagram, WhatsApp, Facebook, Telegram, X) are legally mandated to remove non-consensual explicit or morphed content within <strong>24 hours</strong> of receiving an official grievance or user complaint.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Safety Action Guidance Cards */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Card className="p-4 border-ink-200">
+                  <div className="flex items-center gap-2 text-sm font-bold text-ink-900 mb-1.5">
+                    <FileCheck className="h-4 w-4 text-brand-600" />
+                    <span>Preserve Chat & Media Evidence</span>
+                  </div>
+                  <p className="text-xs text-ink-600 leading-relaxed">
+                    Do not delete messages, call logs, extortion demands, or profile links. Take full-screen captures showing phone numbers and timestamps for Section 63 BSA legal chain-of-custody.
+                  </p>
+                </Card>
+
+                <Card className="p-4 border-ink-200">
+                  <div className="flex items-center gap-2 text-sm font-bold text-ink-900 mb-1.5">
+                    <AlertTriangle className="h-4 w-4 text-danger-600" />
+                    <span>Do Not Pay Extortionists</span>
+                  </div>
+                  <p className="text-xs text-ink-600 leading-relaxed">
+                    Paying money does not guarantee media deletion—extortionists routinely demand larger amounts. Prompt official reporting cuts off their leverage and alerts nodal officers.
+                  </p>
+                </Card>
+
+                <Card className="p-4 border-ink-200">
+                  <div className="flex items-center gap-2 text-sm font-bold text-ink-900 mb-1.5">
+                    <EyeOff className="h-4 w-4 text-purple-700" />
+                    <span>Anonymous Option (Track 1A)</span>
+                  </div>
+                  <p className="text-xs text-ink-600 leading-relaxed">
+                    Under NCRP guidelines, complaints regarding women and child safety can be filed completely anonymously in Step 4. Your name and phone number will not be shared.
+                  </p>
+                </Card>
+
+                <Card className="p-4 border-ink-200">
+                  <div className="flex items-center gap-2 text-sm font-bold text-ink-900 mb-1.5">
+                    <Lock className="h-4 w-4 text-brand-600" />
+                    <span>Statutory Criminal Penalties</span>
+                  </div>
+                  <p className="text-xs text-ink-600 leading-relaxed">
+                    Perpetrators face rigorous imprisonment under IT Act Section 67 / 67A / 67B and Bharatiya Nyaya Sanhita (BNS) Sections 78 (Stalking), 79 (Insult to Modesty), and 351 (Criminal Intimidation).
+                  </p>
+                </Card>
+              </div>
+
+              {/* 24x7 Government Helplines */}
+              <div className="rounded-ux-lg border border-ink-200 bg-white p-5">
+                <p className="text-xs font-bold uppercase tracking-wider text-ink-500 mb-3">
+                  Direct Emergency Helplines (Toll-Free & Confidential)
+                </p>
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <div className="rounded-ux border border-brand-200 bg-brand-50/50 p-3 text-center">
+                    <span className="block text-2xl font-extrabold text-brand-700">1930</span>
+                    <span className="text-xs font-semibold text-ink-800">National Cyber Helpline</span>
+                  </div>
+                  <div className="rounded-ux border border-purple-200 bg-purple-50/50 p-3 text-center">
+                    <span className="block text-2xl font-extrabold text-purple-700">181</span>
+                    <span className="text-xs font-semibold text-ink-800">Women Helpline (24/7)</span>
+                  </div>
+                  <div className="rounded-ux border border-amber-200 bg-amber-50/50 p-3 text-center">
+                    <span className="block text-2xl font-extrabold text-amber-700">1098</span>
+                    <span className="text-xs font-semibold text-ink-800">Childline India</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Step Navigation */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-ink-200">
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep("NARRATIVE")}
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink-600 hover:text-ink-900"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  <span>{t("report.back") || "Back to Incident"}</span>
+                </button>
+
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={() => {
+                    setSafetyDeskAcknowledged(true);
+                    setCurrentStep("DETAILS");
+                  }}
+                  className="py-3 px-6 text-base font-bold bg-purple-700 hover:bg-purple-800 text-white"
+                >
+                  Acknowledge Safety Protocol & Continue to Details
+                </Button>
+              </div>
+            </div>
+          ) : selectedCategory?.priorityDeskType === "system_containment" ? (
+            /* 2B: SYSTEM CONTAINMENT & FORENSIC INTEGRITY DESK (RANSOMWARE / HACKING / DEFACEMENT) */
+            <div className="space-y-6">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full bg-danger-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-danger-800 ring-1 ring-danger-300 mb-2">
+                  <Terminal className="h-3.5 w-3.5 text-danger-700" />
+                  CERT-In Incident Containment & Forensic Integrity
+                </div>
+                <h1 className="text-3xl font-bold tracking-tight text-ink-900 sm:text-4xl">
+                  Contain the Breach & Preserve Evidence
+                </h1>
+                <p className="mt-2 text-base text-ink-600">
+                  Active malware, ransomware, or unauthorized system compromise requires immediate isolation to stop lateral infection across network nodes and preserve volatile RAM forensics.
+                </p>
+              </div>
+
+              {/* Critical Containment Checklist */}
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Card className="p-4 border-2 border-danger-200 bg-danger-50/30">
+                  <div className="flex items-center gap-2 text-sm font-bold text-danger-900 mb-1.5">
+                    <Server className="h-4 w-4 text-danger-700" />
+                    <span>1. Isolate Host from Network Immediately</span>
+                  </div>
+                  <p className="text-xs text-ink-700 leading-relaxed">
+                    Physically unplug Ethernet (LAN) cables and disable Wi-Fi and Bluetooth on affected workstations/servers. Halts active command-and-control (C2) beacons and encryptor propagation.
+                  </p>
+                </Card>
+
+                <Card className="p-4 border-2 border-amber-200 bg-amber-50/30">
+                  <div className="flex items-center gap-2 text-sm font-bold text-amber-900 mb-1.5">
+                    <HardDrive className="h-4 w-4 text-amber-700" />
+                    <span>2. Do NOT Power Off or Reboot</span>
+                  </div>
+                  <p className="text-xs text-ink-700 leading-relaxed">
+                    Avoid hard-rebooting affected hosts. Volatile memory (RAM) contains decryption keys, malicious process injection paths, and socket states critical for forensic analysis.
+                  </p>
+                </Card>
+
+                <Card className="p-4 border-2 border-brand-200 bg-brand-50/30">
+                  <div className="flex items-center gap-2 text-sm font-bold text-brand-900 mb-1.5">
+                    <LockKeyhole className="h-4 w-4 text-brand-700" />
+                    <span>3. Air-Gap Backup Storage Repositories</span>
+                  </div>
+                  <p className="text-xs text-ink-700 leading-relaxed">
+                    Immediately detach offline backup hard drives, Network Attached Storage (NAS), and cloud sync clients to shield unaffected data snapshots from encryption.
+                  </p>
+                </Card>
+
+                <Card className="p-4 border-2 border-ink-200 bg-white">
+                  <div className="flex items-center gap-2 text-sm font-bold text-ink-900 mb-1.5">
+                    <FileText className="h-4 w-4 text-ink-700" />
+                    <span>4. Preserve Server & Firewall Logs</span>
+                  </div>
+                  <p className="text-xs text-ink-700 leading-relaxed">
+                    Pursuant to CERT-In Section 70B directives, export and preserve firewall syslog records, reverse-proxy access logs, and active directory authentication logs (minimum 180-day mandate).
+                  </p>
+                </Card>
+              </div>
+
+              {/* Ransomware Payment Warning Banner */}
+              <div className="rounded-ux-lg border border-danger-300 bg-danger-50/70 p-4 text-xs text-danger-900 space-y-1">
+                <p className="font-bold flex items-center gap-1.5 text-danger-950">
+                  <AlertCircle className="h-4 w-4 text-danger-700" />
+                  National Cybersecurity Advisory on Extortion & Ransom Payments
+                </p>
+                <p className="leading-relaxed">
+                  Indian law enforcement and CERT-In strongly advise against paying ransoms. Paying funds transnational criminal syndicates and provides zero guarantee of legitimate decryption keys.
+                </p>
+              </div>
+
+              {/* Step Navigation */}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-ink-200">
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep("NARRATIVE")}
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink-600 hover:text-ink-900"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  <span>{t("report.back") || "Back to Incident"}</span>
+                </button>
+
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={() => {
+                    setContainmentAcknowledged(true);
+                    setCurrentStep("DETAILS");
+                  }}
+                  className="py-3 px-6 text-base font-bold bg-danger-600 hover:bg-danger-700 text-white"
+                >
+                  Confirm System Containment & Proceed to Details
+                </Button>
+              </div>
+            </div>
+          ) : (
+            /* 2C: BANKING FREEZE (GOLDEN HOUR) DESK (FINANCIAL FRAUD) */
+            <div className="space-y-6">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full bg-danger-50 px-3 py-1 text-xs font-bold uppercase tracking-wider text-danger-700 ring-1 ring-danger-200 mb-2">
+                  <Clock className="h-3.5 w-3.5" />
+                  Golden Hour Emergency Freeze
+                </div>
+                <h1 className="text-3xl font-bold tracking-tight text-ink-900 sm:text-4xl">
+                  Stop the money before it moves
+                </h1>
+                <p className="mt-2 text-base text-ink-600">
+                  The first 120 minutes decide everything. These details were auto-filled by AI from your story. Confirming them transmits an immediate lien alert across India's CFCFRMS bank network.
+                </p>
+              </div>
+
+              {/* AI Extracted Entity Pills preview */}
+              {extractedPills.length > 0 && (
+                <div className="rounded-ux-lg border border-brand-200 bg-brand-50/60 p-3.5">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-brand-800 uppercase tracking-wider mb-2">
+                    <Sparkles className="h-3.5 w-3.5 text-brand-600" />
+                    <span>AI Extracted Facts (Auto-Populated)</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {extractedPills.map((pill, idx) => (
+                      <span key={idx} className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-brand-700 border border-brand-200 shadow-2xs">
+                        {pill}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               )}
 
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-ink-200">
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setCurrentStep("NARRATIVE")}
-                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink-600 hover:text-ink-900"
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                    <span>{t("report.back") || "Back"}</span>
-                  </button>
-                  <span className="text-ink-300">|</span>
-                  <button
-                    type="button"
-                    onClick={() => setCurrentStep("DETAILS")}
-                    className="text-sm font-semibold text-ink-600 hover:text-ink-900 underline"
-                  >
-                    Skip freeze alert for now
-                  </button>
-                </div>
+              <Card className="p-6">
+                <form onSubmit={handleFreezeSubmit} className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label htmlFor="bank-name" className="block text-sm font-semibold text-ink-900 mb-1">
+                        Your Bank / Payment App
+                      </label>
+                      <input
+                        id="bank-name"
+                        type="text"
+                        required
+                        value={bankName}
+                        onChange={(e) => setBankName(e.target.value)}
+                        placeholder="e.g., State Bank of India / HDFC"
+                        className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2.5 text-base focus:border-brand-500 focus:outline-none"
+                      />
+                    </div>
 
-                <Button type="submit" variant="danger" disabled={freezeLoading} className="py-3 px-6 text-base font-bold">
-                  {freezeLoading ? "Transmitting freeze notice..." : "Dispatch Immediate Bank Freeze"}
-                </Button>
-              </div>
-            </form>
-          </Card>
+                    <div>
+                      <label htmlFor="bank-acc" className="block text-sm font-semibold text-ink-900 mb-1">
+                        Your Debited Account / UPI ID
+                      </label>
+                      <input
+                        id="bank-acc"
+                        type="text"
+                        value={bankAccount}
+                        onChange={(e) => setBankAccount(e.target.value)}
+                        placeholder="e.g., 9876543210@ybl or A/C No. (Optional for freeze)"
+                        className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2.5 text-base focus:border-brand-500 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <div>
+                      <label htmlFor="suspect-acc" className="block text-sm font-semibold text-ink-900 mb-1">
+                        Suspect Account / UPI ID
+                      </label>
+                      <input
+                        id="suspect-acc"
+                        type="text"
+                        value={suspectAccount}
+                        onChange={(e) => setSuspectAccount(e.target.value)}
+                        placeholder="e.g., fraud.merchant@axisbank"
+                        className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2.5 text-base focus:border-brand-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="amount" className="block text-sm font-semibold text-ink-900 mb-1">
+                        Amount Lost (₹)
+                      </label>
+                      <input
+                        id="amount"
+                        type="number"
+                        required
+                        value={amount}
+                        onChange={(e) => setAmount(e.target.value)}
+                        placeholder="62000"
+                        className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2.5 text-base font-semibold focus:border-brand-500 focus:outline-none"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="payment-mode" className="block text-sm font-semibold text-ink-900 mb-1">
+                        Payment Mode
+                      </label>
+                      <select
+                        id="payment-mode"
+                        value={paymentMode}
+                        onChange={(e) => setPaymentMode(e.target.value)}
+                        className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2.5 text-base bg-white focus:border-brand-500 focus:outline-none"
+                      >
+                        <option value="UPI">UPI (GPay/PhonePe/Paytm)</option>
+                        <option value="Net Banking">Net Banking (IMPS/NEFT/RTGS)</option>
+                        <option value="Credit/Debit Card">Credit / Debit Card</option>
+                        <option value="AEPS">AEPS / Biometric</option>
+                        <option value="Wallet">Prepaid Wallet</option>
+                        <option value="Crypto">Cryptocurrency</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label htmlFor="utr" className="block text-sm font-semibold text-ink-900 mb-1">
+                      12-Digit Transaction Reference / UTR Number
+                    </label>
+                    <input
+                      id="utr"
+                      type="text"
+                      value={transactionId}
+                      onChange={(e) => setTransactionId(e.target.value)}
+                      placeholder="12-digit UTR from SMS or UPI app receipt"
+                      className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2.5 text-base focus:border-brand-500 focus:outline-none"
+                    />
+                  </div>
+
+                  {errorMessage && (
+                    <div className="rounded-ux bg-danger-50 p-3 text-sm font-medium text-danger-700 border border-danger-200">
+                      {errorMessage}
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-ink-200">
+                    <div className="flex items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setCurrentStep("NARRATIVE")}
+                        className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink-600 hover:text-ink-900"
+                      >
+                        <ArrowLeft className="h-4 w-4" />
+                        <span>{t("report.back") || "Back"}</span>
+                      </button>
+                      <span className="text-ink-300">|</span>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentStep("DETAILS")}
+                        className="text-sm font-semibold text-ink-600 hover:text-ink-900 underline"
+                      >
+                        Skip freeze alert for now
+                      </button>
+                    </div>
+
+                    <Button type="submit" variant="danger" disabled={freezeLoading} className="py-3 px-6 text-base font-bold">
+                      {freezeLoading ? "Transmitting freeze notice..." : "Dispatch Immediate Bank Freeze"}
+                    </Button>
+                  </div>
+                </form>
+              </Card>
+            </div>
+          )}
         </div>
       )}
 
@@ -1429,6 +1932,389 @@ export default function ReportPage() {
               </div>
             </div>
 
+            {/* DYNAMIC CATEGORY-SPECIFIC PARAMETER CARDS */}
+
+            {/* 1. Cryptocurrency Fraud Parameters */}
+            {(selectedCategory?.subCategory === "Cryptocurrency Crime" ||
+              selectedCategory?.id === "cryptocurrency_crime" ||
+              paymentMode === "Crypto") && (
+              <div className="pt-4 border-t border-ink-200 space-y-4">
+                <div className="flex items-center gap-2">
+                  <Coins className="h-4 w-4 text-amber-600" />
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-ink-900">
+                    Cryptocurrency & Blockchain Traceability Parameters
+                  </h3>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="crypto-network" className="block text-xs font-semibold text-ink-700 mb-1">
+                      Blockchain Network
+                    </label>
+                    <select
+                      id="crypto-network"
+                      value={cryptoNetwork}
+                      onChange={(e) => setCryptoNetwork(e.target.value)}
+                      className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm bg-white focus:border-brand-500 focus:outline-none font-medium"
+                    >
+                      <option value="TRC-20 (Tron)">TRC-20 (Tron / USDT)</option>
+                      <option value="ERC-20 (Ethereum)">ERC-20 (Ethereum)</option>
+                      <option value="Bitcoin Network">Bitcoin (BTC Mainnet)</option>
+                      <option value="BEP-20 (BNB Smart Chain)">BEP-20 (BNB Smart Chain)</option>
+                      <option value="Solana Network">Solana (SOL)</option>
+                      <option value="Polygon">Polygon (MATIC)</option>
+                      <option value="Other Network">Other Blockchain</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="crypto-exchange" className="block text-xs font-semibold text-ink-700 mb-1">
+                      Exchange Involved (if applicable)
+                    </label>
+                    <input
+                      id="crypto-exchange"
+                      type="text"
+                      value={cryptoExchange}
+                      onChange={(e) => setCryptoExchange(e.target.value)}
+                      placeholder="e.g., WazirX, CoinDCX, Binance, SunCrypto"
+                      className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm focus:border-brand-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="suspect-wallet" className="block text-xs font-semibold text-ink-700 mb-1">
+                      Suspect Receiving Wallet Address
+                    </label>
+                    <input
+                      id="suspect-wallet"
+                      type="text"
+                      value={suspectWallet}
+                      onChange={(e) => setSuspectWallet(e.target.value)}
+                      placeholder="e.g., TXYZ99824... or 0x71C..."
+                      className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm font-mono focus:border-brand-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="tx-hash" className="block text-xs font-semibold text-ink-700 mb-1">
+                      Transaction Hash / TxID
+                    </label>
+                    <input
+                      id="tx-hash"
+                      type="text"
+                      value={transactionHash}
+                      onChange={(e) => setTransactionHash(e.target.value)}
+                      placeholder="e.g., 0x4f8a9b2... or 64-character hash"
+                      className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm font-mono focus:border-brand-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="victim-wallet" className="block text-xs font-semibold text-ink-700 mb-1">
+                    Your Debited Wallet Address (Complainant Sender)
+                  </label>
+                  <input
+                    id="victim-wallet"
+                    type="text"
+                    value={victimWallet}
+                    onChange={(e) => setVictimWallet(e.target.value)}
+                    placeholder="e.g., Your personal wallet address or funding exchange UID"
+                    className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm font-mono focus:border-brand-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* 2. Ransomware Parameters */}
+            {(selectedCategory?.subCategory === "Ransomware" ||
+              selectedCategory?.id === "ransomware") && (
+              <div className="pt-4 border-t border-ink-200 space-y-4">
+                <div className="flex items-center gap-2">
+                  <Terminal className="h-4 w-4 text-danger-600" />
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-ink-900">
+                    Ransomware Attack Parameters & Extortion Demands
+                  </h3>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="enc-ext" className="block text-xs font-semibold text-ink-700 mb-1">
+                      Encrypted File Extension
+                    </label>
+                    <input
+                      id="enc-ext"
+                      type="text"
+                      value={encryptedExtension}
+                      onChange={(e) => setEncryptedExtension(e.target.value)}
+                      placeholder="e.g., .lockbit3, .blackcat, .phobos, .mallox"
+                      className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm font-mono focus:border-brand-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="ransom-note" className="block text-xs font-semibold text-ink-700 mb-1">
+                      Ransom Note Filename
+                    </label>
+                    <input
+                      id="ransom-note"
+                      type="text"
+                      value={ransomNoteFile}
+                      onChange={(e) => setRansomNoteFile(e.target.value)}
+                      placeholder="e.g., README_RESTORE.txt, DECRYPT_INFO.html"
+                      className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm focus:border-brand-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="ransom-demanded" className="block text-xs font-semibold text-ink-700 mb-1">
+                      Ransom Amount Demanded
+                    </label>
+                    <input
+                      id="ransom-demanded"
+                      type="text"
+                      value={ransomDemanded}
+                      onChange={(e) => setRansomDemanded(e.target.value)}
+                      placeholder="e.g., 0.5 BTC, $25,000 in Monero, ₹10 Lakhs"
+                      className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm focus:border-brand-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="ransom-wallet" className="block text-xs font-semibold text-ink-700 mb-1">
+                      Attacker Receiving Address / Tor Portal Link
+                    </label>
+                    <input
+                      id="ransom-wallet"
+                      type="text"
+                      value={ransomWalletAddress}
+                      onChange={(e) => setRansomWalletAddress(e.target.value)}
+                      placeholder="e.g., bc1q... or http://lockbit...onion"
+                      className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm font-mono focus:border-brand-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 3. Website Defacement / Infrastructure Compromise */}
+            {(selectedCategory?.subCategory === "Website Defacement" ||
+              selectedCategory?.id === "website_defacement" ||
+              selectedCategory?.id === "hacking_intrusion") && (
+              <div className="pt-4 border-t border-ink-200 space-y-4">
+                <div className="flex items-center gap-2">
+                  <Server className="h-4 w-4 text-brand-600" />
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-ink-900">
+                    Infrastructure Compromise & Defacement Parameters
+                  </h3>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="sm:col-span-2">
+                    <label htmlFor="target-domain" className="block text-xs font-semibold text-ink-700 mb-1">
+                      Target Domain / Defaced URL
+                    </label>
+                    <input
+                      id="target-domain"
+                      type="text"
+                      value={targetDomain}
+                      onChange={(e) => setTargetDomain(e.target.value)}
+                      placeholder="e.g., https://portal.example.gov.in"
+                      className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm focus:border-brand-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="server-ip" className="block text-xs font-semibold text-ink-700 mb-1">
+                      Host Server IP / Cloud Provider
+                    </label>
+                    <input
+                      id="server-ip"
+                      type="text"
+                      value={serverIp}
+                      onChange={(e) => setServerIp(e.target.value)}
+                      placeholder="e.g., 103.21.x.x / AWS"
+                      className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm focus:border-brand-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="defacer-handle" className="block text-xs font-semibold text-ink-700 mb-1">
+                    Defacer Alias / Hacktivist Group Signature
+                  </label>
+                  <input
+                    id="defacer-handle"
+                    type="text"
+                    value={defacerHandle}
+                    onChange={(e) => setDefacerHandle(e.target.value)}
+                    placeholder="e.g., Defaced by AnonGhost / Team_Zero"
+                    className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm focus:border-brand-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* 4. Social Media Impersonation / Fake Profile */}
+            {(selectedCategory?.subCategory === "Impersonating Profile / Account" ||
+              selectedCategory?.id === "social_media_impersonation") && (
+              <div className="pt-4 border-t border-ink-200 space-y-4">
+                <div className="flex items-center gap-2">
+                  <Globe className="h-4 w-4 text-brand-600" />
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-ink-900">
+                    Social Media Impersonation & Fake Profile Details
+                  </h3>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div>
+                    <label htmlFor="social-plat" className="block text-xs font-semibold text-ink-700 mb-1">
+                      Platform
+                    </label>
+                    <select
+                      id="social-plat"
+                      value={socialPlatform}
+                      onChange={(e) => setSocialPlatform(e.target.value)}
+                      className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm bg-white focus:border-brand-500 focus:outline-none"
+                    >
+                      <option value="Instagram">Instagram</option>
+                      <option value="Facebook">Facebook</option>
+                      <option value="X (Twitter)">X (Twitter)</option>
+                      <option value="LinkedIn">LinkedIn</option>
+                      <option value="Telegram">Telegram</option>
+                      <option value="WhatsApp">WhatsApp</option>
+                      <option value="Snapchat">Snapchat</option>
+                      <option value="Other">Other Platform</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="imposter-url" className="block text-xs font-semibold text-ink-700 mb-1">
+                      Imposter / Fake Profile URL *
+                    </label>
+                    <input
+                      id="imposter-url"
+                      type="text"
+                      value={imposterUrl}
+                      onChange={(e) => setImposterUrl(e.target.value)}
+                      placeholder="e.g., instagram.com/rajesh_sharma_official_real"
+                      className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm focus:border-brand-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="genuine-url" className="block text-xs font-semibold text-ink-700 mb-1">
+                      Your Genuine / Original Profile URL
+                    </label>
+                    <input
+                      id="genuine-url"
+                      type="text"
+                      value={genuineUrl}
+                      onChange={(e) => setGenuineUrl(e.target.value)}
+                      placeholder="e.g., instagram.com/rajesh_sharma"
+                      className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm focus:border-brand-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* 5. Malicious APK Details */}
+            {(selectedCategory?.subCategory === "Malicious Mobile Apps / APK" ||
+              selectedCategory?.id === "mobile_malicious_apk") && (
+              <div className="pt-4 border-t border-ink-200 space-y-4">
+                <div className="flex items-center gap-2">
+                  <Cpu className="h-4 w-4 text-danger-600" />
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-ink-900">
+                    Malicious Mobile App / APK Parameters
+                  </h3>
+                </div>
+
+                <div>
+                  <label htmlFor="apk-name" className="block text-xs font-semibold text-ink-700 mb-1">
+                    Malicious APK / Package Name
+                  </label>
+                  <input
+                    id="apk-name"
+                    type="text"
+                    value={maliciousApkName}
+                    onChange={(e) => setMaliciousApkName(e.target.value)}
+                    placeholder="e.g., SBI_Reward_Update.apk or com.device.support.quick"
+                    className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm focus:border-brand-500 focus:outline-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* 6. Women / Child Safety & Cyber Harassment Parameters */}
+            {(selectedCategory?.section === "WOMEN_CHILDREN" ||
+              selectedCategory?.id === "sextortion" ||
+              selectedCategory?.id === "cyber_bullying_stalking") && (
+              <div className="pt-4 border-t border-ink-200 space-y-4">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck className="h-4 w-4 text-purple-700" />
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-ink-900">
+                    Cyber Harassment & Safety Specific Particulars
+                  </h3>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div>
+                    <label htmlFor="harass-med" className="block text-xs font-semibold text-ink-700 mb-1">
+                      Harassment Medium
+                    </label>
+                    <select
+                      id="harass-med"
+                      value={harassmentMedium}
+                      onChange={(e) => setHarassmentMedium(e.target.value)}
+                      className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm bg-white focus:border-brand-500 focus:outline-none"
+                    >
+                      <option value="WhatsApp">WhatsApp</option>
+                      <option value="Instagram DM">Instagram DM</option>
+                      <option value="Telegram">Telegram</option>
+                      <option value="Video Call">Video Call</option>
+                      <option value="Email">Email</option>
+                      <option value="SMS">SMS / Phone Call</option>
+                      <option value="Dating App">Dating App</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="threatened-content" className="block text-xs font-semibold text-ink-700 mb-1">
+                      Threatened Content / Material
+                    </label>
+                    <input
+                      id="threatened-content"
+                      type="text"
+                      value={threatenedContent}
+                      onChange={(e) => setThreatenedContent(e.target.value)}
+                      placeholder="e.g., Morphed private photos, video recording"
+                      className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm focus:border-brand-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="extort-demand" className="block text-xs font-semibold text-ink-700 mb-1">
+                      Extortion / Coercion Demands
+                    </label>
+                    <input
+                      id="extort-demand"
+                      type="text"
+                      value={extortionDemand}
+                      onChange={(e) => setExtortionDemand(e.target.value)}
+                      placeholder="e.g., Demanding ₹15,000 or sexual favors"
+                      className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm focus:border-brand-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Clean Manual Modus Operandi Narrative Box (Zero AI calls) */}
             <div className="pt-4 border-t border-ink-200 space-y-2">
               <label htmlFor="modus-narrative" className="block text-sm font-bold text-ink-900">
@@ -1450,7 +2336,10 @@ export default function ReportPage() {
             <div className="mt-6 flex justify-between items-center pt-4 border-t border-ink-200">
               <button
                 type="button"
-                onClick={() => setCurrentStep(triageResult?.isFinancialFraud && triageResult?.moneyMoved ? "FREEZE" : "NARRATIVE")}
+                onClick={() => {
+                  const desk = selectedCategory?.priorityDeskType || (triageResult?.isFinancialFraud && triageResult?.moneyMoved ? "banking_freeze" : "none");
+                  setCurrentStep(desk !== "none" ? "FREEZE" : "NARRATIVE");
+                }}
                 className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink-600 hover:text-ink-900"
               >
                 <ArrowLeft className="h-4 w-4" />
@@ -1483,124 +2372,170 @@ export default function ReportPage() {
           </div>
 
           <Card className="p-6 space-y-6">
+            {/* NCRP Track 1A Anonymous Complaint Option (For Women & Children Crimes) */}
+            {selectedCategory?.section === "WOMEN_CHILDREN" && (
+              <div className="rounded-ux-lg border-2 border-purple-300 bg-purple-50/80 p-4 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="flex items-start gap-2.5">
+                    <EyeOff className="h-5 w-5 text-purple-700 shrink-0 mt-0.5" />
+                    <div>
+                      <h4 className="text-sm font-bold text-purple-950">
+                        NCRP Track 1A — Report Anonymously (Optional)
+                      </h4>
+                      <p className="mt-0.5 text-xs text-purple-900 leading-relaxed">
+                        Under official NCRP portal guidelines, complaints of cybercrime against women and children can be filed completely anonymously. Your identity will NOT be recorded or revealed to the suspect or public.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setReportAnonymously(!reportAnonymously)}
+                    className={`rounded-ux px-4 py-2 text-xs font-bold transition shrink-0 border ${
+                      reportAnonymously
+                        ? "bg-purple-700 text-white border-purple-800 shadow-xs"
+                        : "bg-white text-purple-800 border-purple-300 hover:bg-purple-100"
+                    }`}
+                  >
+                    {reportAnonymously ? "✓ Track 1A Anonymous Mode Active" : "Enable Anonymous Mode (Track 1A)"}
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Complainant Identity */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <UserCheck className="h-4 w-4 text-brand-600" />
-                <h3 className="text-sm font-bold uppercase tracking-wider text-ink-900">
-                  Complainant Identity Particulars
-                </h3>
+            {reportAnonymously ? (
+              <div className="rounded-ux-lg border border-purple-200 bg-purple-50/50 p-4 text-xs text-purple-900 space-y-1.5">
+                <p className="font-bold flex items-center gap-1.5 text-purple-950 text-sm">
+                  <ShieldCheck className="h-4 w-4 text-purple-700" />
+                  Track 1A Active — Complainant KYC Withheld
+                </p>
+                <p className="leading-relaxed">
+                  Full name, contact phone, email address, date of birth, and government identity document requirements are waived and protected under NCRP Track 1A rules.
+                </p>
+                <p className="text-purple-800 font-medium">
+                  Please verify your designated State and Cyber Crime Police Station below so the local Cyber Cell can register your complaint for inquiry.
+                </p>
               </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="kyc-name" className="block text-xs font-semibold text-ink-700 mb-1">
-                    Full Name (as per Official ID) *
-                  </label>
-                  <input
-                    id="kyc-name"
-                    type="text"
-                    required
-                    value={fullName}
-                    onChange={(e) => setFullName(e.target.value)}
-                    placeholder="e.g., Rajesh Kumar Sharma"
-                    className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm focus:border-brand-500 focus:outline-none"
-                  />
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="h-4 w-4 text-brand-600" />
+                  <h3 className="text-sm font-bold uppercase tracking-wider text-ink-900">
+                    Complainant Identity Particulars
+                  </h3>
                 </div>
 
-                <div>
-                  <label htmlFor="kyc-phone" className="block text-xs font-semibold text-ink-700 mb-1">
-                    Mobile Number (for SMS Tracking & Verification) *
-                  </label>
-                  <input
-                    id="kyc-phone"
-                    type="tel"
-                    required
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="e.g., 9876543210"
-                    className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm focus:border-brand-500 focus:outline-none"
-                  />
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="kyc-name" className="block text-xs font-semibold text-ink-700 mb-1">
+                      Full Name (as per Official ID) *
+                    </label>
+                    <input
+                      id="kyc-name"
+                      type="text"
+                      required={!reportAnonymously}
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      placeholder="e.g., Rajesh Kumar Sharma"
+                      className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm focus:border-brand-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="kyc-phone" className="block text-xs font-semibold text-ink-700 mb-1">
+                      Mobile Number (for SMS Tracking & Verification) *
+                    </label>
+                    <input
+                      id="kyc-phone"
+                      type="tel"
+                      required={!reportAnonymously}
+                      value={phone}
+                      onChange={(e) => setPhone(e.target.value)}
+                      placeholder="e.g., 9876543210"
+                      className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm focus:border-brand-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-3">
+                  <div>
+                    <label htmlFor="kyc-email" className="block text-xs font-semibold text-ink-700 mb-1">
+                      Email Address (for PDF confirmation)
+                    </label>
+                    <input
+                      id="kyc-email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="name@example.com"
+                      className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm focus:border-brand-500 focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="kyc-gender" className="block text-xs font-semibold text-ink-700 mb-1">
+                      Gender
+                    </label>
+                    <select
+                      id="kyc-gender"
+                      value={gender}
+                      onChange={(e) => setGender(e.target.value)}
+                      className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm bg-white focus:border-brand-500 focus:outline-none"
+                    >
+                      <option value="Male">Male</option>
+                      <option value="Female">Female</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="kyc-dob" className="block text-xs font-semibold text-ink-700 mb-1">
+                      Date of Birth
+                    </label>
+                    <input
+                      id="kyc-dob"
+                      type="date"
+                      value={dob}
+                      onChange={(e) => setDob(e.target.value)}
+                      className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm bg-white focus:border-brand-500 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label htmlFor="kyc-idtype" className="block text-xs font-semibold text-ink-700 mb-1">
+                      National ID Type
+                    </label>
+                    <select
+                      id="kyc-idtype"
+                      value={idType}
+                      onChange={(e) => setIdType(e.target.value)}
+                      className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm bg-white focus:border-brand-500 focus:outline-none"
+                    >
+                      {NATIONAL_ID_TYPES.map((t) => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="kyc-idnumber" className="block text-xs font-semibold text-ink-700 mb-1">
+                      ID Document Number (Masked or Partial)
+                    </label>
+                    <input
+                      id="kyc-idnumber"
+                      type="text"
+                      value={idNumber}
+                      onChange={(e) => setIdNumber(e.target.value)}
+                      placeholder="e.g., XXXX-XXXX-4819 or PAN"
+                      className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm focus:border-brand-500 focus:outline-none"
+                    />
+                  </div>
                 </div>
               </div>
-
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div>
-                  <label htmlFor="kyc-email" className="block text-xs font-semibold text-ink-700 mb-1">
-                    Email Address (for PDF confirmation)
-                  </label>
-                  <input
-                    id="kyc-email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@example.com"
-                    className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm focus:border-brand-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="kyc-gender" className="block text-xs font-semibold text-ink-700 mb-1">
-                    Gender
-                  </label>
-                  <select
-                    id="kyc-gender"
-                    value={gender}
-                    onChange={(e) => setGender(e.target.value)}
-                    className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm bg-white focus:border-brand-500 focus:outline-none"
-                  >
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                    <option value="Other">Other</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="kyc-dob" className="block text-xs font-semibold text-ink-700 mb-1">
-                    Date of Birth
-                  </label>
-                  <input
-                    id="kyc-dob"
-                    type="date"
-                    value={dob}
-                    onChange={(e) => setDob(e.target.value)}
-                    className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm bg-white focus:border-brand-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label htmlFor="kyc-idtype" className="block text-xs font-semibold text-ink-700 mb-1">
-                    National ID Type
-                  </label>
-                  <select
-                    id="kyc-idtype"
-                    value={idType}
-                    onChange={(e) => setIdType(e.target.value)}
-                    className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm bg-white focus:border-brand-500 focus:outline-none"
-                  >
-                    {NATIONAL_ID_TYPES.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="kyc-idnumber" className="block text-xs font-semibold text-ink-700 mb-1">
-                    ID Document Number (Masked or Partial)
-                  </label>
-                  <input
-                    id="kyc-idnumber"
-                    type="text"
-                    value={idNumber}
-                    onChange={(e) => setIdNumber(e.target.value)}
-                    placeholder="e.g., XXXX-XXXX-4819 or PAN"
-                    className="w-full rounded-ux border-2 border-ink-200 px-3.5 py-2 text-sm focus:border-brand-500 focus:outline-none"
-                  />
-                </div>
-              </div>
-            </div>
+            )}
 
             {/* Jurisdictional Routing */}
             <div className="pt-4 border-t border-ink-200 space-y-4">
@@ -1882,15 +2817,42 @@ export default function ReportPage() {
           <Card className="p-6 space-y-5">
             {/* Classification & Urgency */}
             <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-ink-500">
-                Official NCRP Classification
-              </p>
-              <div className="mt-1 flex items-center justify-between">
-                <span className="text-xl font-bold text-ink-900">{selectedCategory?.label}</span>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-ink-500">
+                    Official NCRP Statutory Classification
+                  </p>
+                  <span className="text-xl font-bold text-ink-900 block mt-0.5">{selectedCategory?.label}</span>
+                  <div className="flex flex-wrap items-center gap-2 mt-1">
+                    <span className="text-xs font-semibold text-brand-700 bg-brand-50 px-2 py-0.5 rounded border border-brand-200">
+                      {selectedCategory?.section === "WOMEN_CHILDREN"
+                        ? "Pillar 1: Women / Children Related Crime"
+                        : selectedCategory?.section === "FINANCIAL"
+                        ? "Pillar 2: Financial Fraud"
+                        : "Pillar 3: Other Cyber Crime"}
+                    </span>
+                    {selectedCategory?.subCategory && (
+                      <span className="text-xs text-ink-600 bg-ink-100 px-2 py-0.5 rounded">
+                        {selectedCategory.subCategory}
+                      </span>
+                    )}
+                    {reportAnonymously && (
+                      <span className="text-xs font-bold text-purple-800 bg-purple-100 px-2 py-0.5 rounded border border-purple-300">
+                        NCRP Track 1A (Anonymous)
+                      </span>
+                    )}
+                  </div>
+                </div>
                 <Badge tone={selectedCategory?.defaultUrgency === "golden-hour" ? "danger" : "neutral"}>
-                  {selectedCategory?.parent}
+                  {selectedCategory?.defaultUrgency?.toUpperCase()}
                 </Badge>
               </div>
+
+              {selectedCategory?.statutoryCitations && selectedCategory.statutoryCitations.length > 0 && (
+                <div className="mt-2 text-[11px] text-ink-500 font-mono">
+                  <strong>Statutory Provisions:</strong> {selectedCategory.statutoryCitations.join(" | ")}
+                </div>
+              )}
             </div>
 
             {/* Narrative */}
@@ -1922,6 +2884,92 @@ export default function ReportPage() {
               </div>
             )}
 
+            {/* Category-Specific Dynamic Review Particulars */}
+            {(cryptoNetwork || suspectWallet || transactionHash) && (
+              <div className="border-t border-ink-200 pt-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-amber-700 mb-1 flex items-center gap-1.5">
+                  <Coins className="h-3.5 w-3.5" />
+                  <span>Cryptocurrency Transaction Parameters</span>
+                </p>
+                <div className="rounded-ux bg-amber-50/50 border border-amber-200 p-3 text-xs text-ink-900 space-y-1">
+                  {cryptoNetwork && <p><strong>Network:</strong> {cryptoNetwork}</p>}
+                  {suspectWallet && <p><strong>Suspect Wallet:</strong> <span className="font-mono break-all">{suspectWallet}</span></p>}
+                  {transactionHash && <p><strong>TxID:</strong> <span className="font-mono break-all">{transactionHash}</span></p>}
+                  {victimWallet && <p><strong>Complainant Wallet:</strong> <span className="font-mono break-all">{victimWallet}</span></p>}
+                  {cryptoExchange && <p><strong>Exchange:</strong> {cryptoExchange}</p>}
+                </div>
+              </div>
+            )}
+
+            {(encryptedExtension || ransomDemanded || ransomNoteFile) && (
+              <div className="border-t border-ink-200 pt-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-danger-700 mb-1 flex items-center gap-1.5">
+                  <Terminal className="h-3.5 w-3.5" />
+                  <span>Ransomware Extortion Parameters</span>
+                </p>
+                <div className="rounded-ux bg-danger-50/50 border border-danger-200 p-3 text-xs text-ink-900 space-y-1">
+                  {encryptedExtension && <p><strong>Extension:</strong> <span className="font-mono">{encryptedExtension}</span></p>}
+                  {ransomNoteFile && <p><strong>Note File:</strong> {ransomNoteFile}</p>}
+                  {ransomDemanded && <p><strong>Ransom Demanded:</strong> {ransomDemanded}</p>}
+                  {ransomWalletAddress && <p><strong>Extortion Wallet:</strong> <span className="font-mono break-all">{ransomWalletAddress}</span></p>}
+                </div>
+              </div>
+            )}
+
+            {(targetDomain || serverIp || defacerHandle) && (
+              <div className="border-t border-ink-200 pt-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-brand-700 mb-1 flex items-center gap-1.5">
+                  <Server className="h-3.5 w-3.5" />
+                  <span>Infrastructure & Defacement Parameters</span>
+                </p>
+                <div className="rounded-ux bg-brand-50/50 border border-brand-200 p-3 text-xs text-ink-900 space-y-1">
+                  {targetDomain && <p><strong>Target Domain:</strong> {targetDomain}</p>}
+                  {serverIp && <p><strong>Host Server IP:</strong> {serverIp}</p>}
+                  {defacerHandle && <p><strong>Defacer Alias:</strong> {defacerHandle}</p>}
+                </div>
+              </div>
+            )}
+
+            {(imposterUrl || genuineUrl) && (
+              <div className="border-t border-ink-200 pt-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-brand-700 mb-1 flex items-center gap-1.5">
+                  <Globe className="h-3.5 w-3.5" />
+                  <span>Social Media Impersonation Particulars</span>
+                </p>
+                <div className="rounded-ux bg-ink-50 border border-ink-200 p-3 text-xs text-ink-900 space-y-1">
+                  {socialPlatform && <p><strong>Platform:</strong> {socialPlatform}</p>}
+                  {imposterUrl && <p><strong>Imposter Profile:</strong> <span className="break-all">{imposterUrl}</span></p>}
+                  {genuineUrl && <p><strong>Genuine Profile:</strong> <span className="break-all">{genuineUrl}</span></p>}
+                </div>
+              </div>
+            )}
+
+            {maliciousApkName && (
+              <div className="border-t border-ink-200 pt-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-danger-700 mb-1 flex items-center gap-1.5">
+                  <Cpu className="h-3.5 w-3.5" />
+                  <span>Malicious Mobile App / APK</span>
+                </p>
+                <div className="rounded-ux bg-ink-50 border border-ink-200 p-3 text-xs text-ink-900">
+                  <p><strong>Package Name:</strong> <span className="font-mono">{maliciousApkName}</span></p>
+                </div>
+              </div>
+            )}
+
+            {(threatenedContent || extortionDemand) && (
+              <div className="border-t border-ink-200 pt-4">
+                <p className="text-xs font-bold uppercase tracking-wider text-purple-800 mb-1 flex items-center gap-1.5">
+                  <ShieldCheck className="h-3.5 w-3.5 text-purple-700" />
+                  <span>Cyber Harassment & Coercion Particulars</span>
+                </p>
+                <div className="rounded-ux bg-purple-50/50 border border-purple-200 p-3 text-xs text-ink-900 space-y-1">
+                  {harassmentMedium && <p><strong>Harassment Medium:</strong> {harassmentMedium}</p>}
+                  {threatenedContent && <p><strong>Threatened Content:</strong> {threatenedContent}</p>}
+                  {extortionDemand && <p><strong>Coercion Demand:</strong> {extortionDemand}</p>}
+                </div>
+              </div>
+            )}
+
             {/* Suspect Particulars */}
             {(suspectName || suspectPhone || suspectHandle || suspectWebsite) && (
               <div className="border-t border-ink-200 pt-4">
@@ -1943,8 +2991,17 @@ export default function ReportPage() {
                 Complainant Identity & Jurisdiction Assignment
               </p>
               <div className="rounded-ux bg-ink-50 p-3 text-xs text-ink-800 space-y-1">
-                <p><strong>Complainant:</strong> {fullName || "Not specified"} ({phone || accountPhone || "Verified in session"})</p>
-                {email && <p><strong>Email:</strong> {email}</p>}
+                {reportAnonymously ? (
+                  <p className="text-purple-800 font-semibold flex items-center gap-1">
+                    <EyeOff className="h-3.5 w-3.5" />
+                    <span>Identity Status: PROTECTED ANONYMOUS (Track 1A - Identity Withheld)</span>
+                  </p>
+                ) : (
+                  <>
+                    <p><strong>Complainant:</strong> {fullName || "Not specified"} ({phone || accountPhone || "Verified in session"})</p>
+                    {email && <p><strong>Email:</strong> {email}</p>}
+                  </>
+                )}
                 <p><strong>Assigned Cyber Station:</strong> {policeStation}, {district}, {stateName}</p>
               </div>
             </div>

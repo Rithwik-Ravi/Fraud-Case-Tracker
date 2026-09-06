@@ -107,6 +107,10 @@ export async function submitComplaintAction(data: {
     pincode?: string;
   };
   undertakingAccepted?: boolean;
+  section?: "WOMEN_CHILDREN" | "FINANCIAL" | "OTHER";
+  subCategory?: string;
+  reportAnonymously?: boolean;
+  categorySpecificFields?: Record<string, any>;
   evidenceFiles?: Array<{ name: string; size: number; sha256: string; category?: string }>;
   phone?: string;
 }): Promise<{ success: boolean; ack?: string; error?: string }> {
@@ -132,6 +136,10 @@ export async function submitComplaintAction(data: {
       categoryId: data.categoryId,
       categoryLabel: data.categoryLabel,
       parentCategory: data.parentCategory,
+      section: data.section,
+      subCategory: data.subCategory,
+      reportAnonymously: data.reportAnonymously,
+      categorySpecificFields: data.categorySpecificFields,
       urgency: data.urgency,
       narrative: data.narrative,
       amount: data.amount,
