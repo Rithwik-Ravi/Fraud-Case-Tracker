@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getOpenAiApiKey } from "@/lib/ai-config";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -44,10 +45,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Invalid message format." }, { status: 400 });
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = getOpenAiApiKey();
 
     // If OPENAI_API_KEY is configured, use OpenAI gpt-4o-mini
-    if (apiKey && apiKey.trim().length > 0 && !apiKey.includes("sk-proj-...")) {
+    if (apiKey) {
       try {
         const { default: OpenAI } = await import("openai");
         const openai = new OpenAI({ apiKey: apiKey.trim(), timeout: 25000 });

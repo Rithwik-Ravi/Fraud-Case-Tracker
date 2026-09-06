@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { classifyNarrative, TriageResult, CATEGORIES } from "@/lib/triage";
+import { getOpenAiApiKey } from "@/lib/ai-config";
 
 export const runtime = "nodejs";
 export const maxDuration = 10;
@@ -22,14 +23,14 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Try Python AI Engine path if running ──────────────────────────────────
-  const aiEngineUrl = process.env.AI_ENGINE_URL || "http://127.0.0.1:8000";
+  const aiEngineUrl = process.env.AI_ENGINE_URL || "http://127.0.0.1:8001";
   if (narrative.trim().length > 5) {
     try {
       const aiRes = await fetch(`${aiEngineUrl}/api/ai/triage`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ narrative }),
-        signal: AbortSignal.timeout(4000),
+        signal: AbortSignal.timeout(5000),
       });
       if (aiRes.ok) {
         const aiData: TriageResult = await aiRes.json();
@@ -41,7 +42,7 @@ export async function POST(req: NextRequest) {
   }
 
   // ── Try OpenAI path ────────────────────────────────────────────────────────
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = getOpenAiApiKey();
   if (apiKey && narrative.trim().length > 10) {
     try {
       const result = await classifyWithOpenAI(narrative, apiKey);
