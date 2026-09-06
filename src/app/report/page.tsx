@@ -15,6 +15,7 @@ import {
   CATEGORIES,
   Category,
   TriageResult,
+  classifyNarrative,
 } from "@/lib/triage";
 import {
   INDIAN_JURISDICTIONS,
@@ -342,6 +343,51 @@ export default function ReportPage() {
     setNarrative(exampleText);
   };
 
+  const applyTriageResult = (result: TriageResult, presetAmount?: number) => {
+    // Digital Arrest interrupt — redirect immediately to circuit breaker
+    if (result.isDigitalArrest) {
+      window.location.href = "/digital-arrest?continue=true";
+      return;
+    }
+
+    setTriageResult(result);
+    const cat = CATEGORIES.find((c) => c.id === result.categoryId) || CATEGORIES[0];
+    setSelectedCategory(cat);
+
+    // ✨ AUTO-FILL FORM BOXES ACROSS ALL STEPS FROM AI EXTRACTION ✨
+    if (result.extractedFields) {
+      const ef = result.extractedFields;
+      if (ef.bankName) setBankName(ef.bankName);
+      if (ef.bankAccount) setBankAccount(ef.bankAccount);
+      if (ef.suspectAccount) setSuspectAccount(ef.suspectAccount);
+      if (ef.utrNumber) setTransactionId(ef.utrNumber);
+      if (ef.amount) setAmount(ef.amount.toString());
+      if (ef.paymentMode) setPaymentMode(ef.paymentMode);
+      if (ef.channel) setPlatformChannel(ef.channel);
+      if (ef.suspectName) setSuspectName(ef.suspectName);
+      if (ef.suspectPhone) setSuspectPhone(ef.suspectPhone);
+      if (ef.suspectHandle) setSuspectHandle(ef.suspectHandle);
+      if (ef.suspectWebsite) setSuspectWebsite(ef.suspectWebsite);
+      if (ef.incidentDate) setIncidentDate(ef.incidentDate);
+      if (ef.delayReason) setDelayReason(ef.delayReason);
+    } else if (presetAmount) {
+      setAmount(presetAmount.toString());
+    } else if (result.detectedAmount) {
+      setAmount(result.detectedAmount.toString());
+    }
+
+    if (result.extractedPills && result.extractedPills.length > 0) {
+      setExtractedPills(result.extractedPills);
+    }
+
+    // Advance to next step (Golden Hour Freeze if money moved, otherwise Details)
+    if (result.isFinancialFraud && result.moneyMoved) {
+      setCurrentStep("FREEZE");
+    } else {
+      setCurrentStep("DETAILS");
+    }
+  };
+
   // STEP 1 AI TRIAGE & FORM PRE-POPULATION
   const handleTriage = async (textToTriage = narrative, presetAmount?: number) => {
     if (!textToTriage.trim()) return;
@@ -358,51 +404,16 @@ export default function ReportPage() {
 
       if (!res.ok) throw new Error(`Triage API error ${res.status}`);
       const result: TriageResult = await res.json();
-
-      // Digital Arrest interrupt — redirect immediately to circuit breaker
-      if (result.isDigitalArrest) {
-        window.location.href = "/digital-arrest?continue=true";
-        return;
+      applyTriageResult(result, presetAmount);
+    } catch (err) {
+      console.warn("[report] triage API error, applying local rule engine fallback:", err);
+      try {
+        const fallback = classifyNarrative(textToTriage);
+        applyTriageResult(fallback, presetAmount);
+      } catch (fallbackErr) {
+        console.error("[report] local triage fallback error:", fallbackErr);
+        setErrorMessage("Classification service error. Please try again.");
       }
-
-      setTriageResult(result);
-      const cat = CATEGORIES.find((c) => c.id === result.categoryId) || CATEGORIES[0];
-      setSelectedCategory(cat);
-
-      // ✨ AUTO-FILL FORM BOXES ACROSS ALL STEPS FROM AI EXTRACTION ✨
-      if (result.extractedFields) {
-        const ef = result.extractedFields;
-        if (ef.bankName) setBankName(ef.bankName);
-        if (ef.bankAccount) setBankAccount(ef.bankAccount);
-        if (ef.suspectAccount) setSuspectAccount(ef.suspectAccount);
-        if (ef.utrNumber) setTransactionId(ef.utrNumber);
-        if (ef.amount) setAmount(ef.amount.toString());
-        if (ef.paymentMode) setPaymentMode(ef.paymentMode);
-        if (ef.channel) setPlatformChannel(ef.channel);
-        if (ef.suspectName) setSuspectName(ef.suspectName);
-        if (ef.suspectPhone) setSuspectPhone(ef.suspectPhone);
-        if (ef.suspectHandle) setSuspectHandle(ef.suspectHandle);
-        if (ef.suspectWebsite) setSuspectWebsite(ef.suspectWebsite);
-        if (ef.incidentDate) setIncidentDate(ef.incidentDate);
-        if (ef.delayReason) setDelayReason(ef.delayReason);
-      } else if (presetAmount) {
-        setAmount(presetAmount.toString());
-      } else if (result.detectedAmount) {
-        setAmount(result.detectedAmount.toString());
-      }
-
-      if (result.extractedPills && result.extractedPills.length > 0) {
-        setExtractedPills(result.extractedPills);
-      }
-
-      // Advance to next step (Golden Hour Freeze if money moved, otherwise Details)
-      if (result.isFinancialFraud && result.moneyMoved) {
-        setCurrentStep("FREEZE");
-      } else {
-        setCurrentStep("DETAILS");
-      }
-    } catch {
-      setErrorMessage("Classification service error. Please try again.");
     } finally {
       setTriageLoading(false);
     }
