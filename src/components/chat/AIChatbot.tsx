@@ -681,30 +681,32 @@ export default function AIChatbot() {
 
               {/* Message List */}
               <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5 bg-ink-50/50">
-                {currentMessages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
-                  >
+                {(() => {
+                  const latestAssistantId = [...currentMessages].reverse().find((m) => m.role === "assistant")?.id;
+                  return currentMessages.map((msg) => (
                     <div
-                      className={`max-w-[94%] rounded-ux p-3 text-xs leading-relaxed whitespace-pre-wrap ${
-                        msg.role === "user"
-                          ? "bg-ink-900 text-white font-medium"
-                          : "border border-ink-300 bg-white text-ink-900 shadow-2xs"
-                      }`}
+                      key={msg.id}
+                      className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
                     >
-                      {/* Acknowledgement and guidance prose */}
-                      <FormattedMessageContent content={msg.content} />
+                      <div
+                        className={`max-w-[94%] rounded-ux p-3 text-xs leading-relaxed whitespace-pre-wrap ${
+                          msg.role === "user"
+                            ? "bg-ink-900 text-white font-medium"
+                            : "border border-ink-300 bg-white text-ink-900 shadow-2xs"
+                        }`}
+                      >
+                        {/* Acknowledgement and guidance prose */}
+                        <FormattedMessageContent content={msg.content} />
 
-                      {/* STATUTORY FIELD INTAKE TABLE (Rendered right after the acknowledgement text) */}
-                      {chatMode === "reporting" && msg.role === "assistant" && msg.draft && (
-                        <IntakeChecklistTable
-                          draft={msg.draft}
-                          onTransfer={handleTransferToReport}
-                          transferredSuccess={transferredSuccess}
-                        />
-                      )}
-                    </div>
+                        {/* STATUTORY FIELD INTAKE TABLE (Rendered ONLY on the latest assistant message when details are being filled) */}
+                        {chatMode === "reporting" && msg.role === "assistant" && msg.draft && msg.id === latestAssistantId && (
+                          <IntakeChecklistTable
+                            draft={msg.draft}
+                            onTransfer={handleTransferToReport}
+                            transferredSuccess={transferredSuccess}
+                          />
+                        )}
+                      </div>
 
                     <div className="flex items-center gap-2 mt-1 px-1">
                       <span className="text-[10px] text-ink-400">{msg.timestamp}</span>
@@ -740,7 +742,8 @@ export default function AIChatbot() {
                       )}
                     </div>
                   </div>
-                ))}
+                ));
+              })()}
 
                 {loading && (
                   <div className="flex items-center gap-2 text-xs text-ink-500 p-2">
@@ -960,6 +963,41 @@ function IntakeChecklistTable({
   const isSocialMedia = catId.includes("impersonation") || catId.includes("account_takeover") || catId.includes("stalking") || catId.includes("wc_defamation");
   const isWomenChildren = draft.section === "WOMEN_CHILDREN" || catId.includes("child") || catId.includes("sextortion") || catId.includes("blackmail");
 
+  const [isExpanded, setIsExpanded] = useState<boolean>(true);
+
+  // Check whether user has actually entered/provided concrete details
+  const hasConcreteDetails = Boolean(
+    draft.amount ||
+    draft.utrNumber ||
+    draft.bankName ||
+    draft.bankAccount ||
+    draft.suspectAccount ||
+    draft.suspectPhone ||
+    draft.suspectName ||
+    draft.suspectHandle ||
+    draft.suspectWebsite ||
+    draft.transactionHash ||
+    draft.suspectWallet ||
+    draft.victimWallet ||
+    draft.encryptedExtension ||
+    draft.ransomNoteFile ||
+    draft.ransomDemanded ||
+    draft.ransomWalletAddress ||
+    draft.targetDomain ||
+    draft.serverIp ||
+    draft.defacerHandle ||
+    draft.imposterUrl ||
+    draft.genuineUrl ||
+    draft.maliciousApkName ||
+    draft.threatenedContent ||
+    draft.extortionDemand
+  );
+
+  // Show only when the person is actively filling in details!
+  if (!hasConcreteDetails) {
+    return null;
+  }
+
   // Dynamic Category-Aware Checklist Builder
   const checklistItems = [
     {
@@ -1031,10 +1069,10 @@ function IntakeChecklistTable({
             value: draft.genuineUrl || null,
           },
           {
-            id: "hand",
-            name: "Impersonated Handle",
-            desc: "Offending account handle or username",
-            value: draft.suspectHandle || null,
+            id: "plat",
+            name: "Platform",
+            desc: "Intermediary jurisdiction under IT Act",
+            value: draft.socialPlatform || null,
           },
         ]
       : isWomenChildren
@@ -1116,19 +1154,56 @@ function IntakeChecklistTable({
   const countTotal = checklistItems.length;
   const progressPercent = Math.round((countFilled / countTotal) * 100);
 
+  if (!isExpanded) {
+    return (
+      <div className="mt-2.5 rounded-lg border border-zinc-200 bg-zinc-50/90 px-3 py-2 flex items-center justify-between shadow-2xs font-sans not-prose">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-[11px] font-bold text-zinc-900">
+            Incident Details ({countFilled} of {countTotal} captured)
+          </span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setIsExpanded(true)}
+            className="text-[11px] font-semibold text-brand-700 hover:text-brand-900 px-2 py-0.5 rounded hover:bg-brand-50 transition"
+          >
+            Review Details ▾
+          </button>
+          <button
+            type="button"
+            onClick={onTransfer}
+            className="inline-flex items-center gap-1 rounded bg-zinc-900 px-2 py-1 text-[10px] font-semibold text-white hover:bg-zinc-800 transition"
+          >
+            <span>Transfer</span>
+            <ArrowRight className="h-2.5 w-2.5" />
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mt-3 rounded-xl border border-zinc-200/90 bg-white overflow-hidden shadow-2xs font-sans not-prose">
       {/* Sleek Minimal Header (ChatGPT Style) */}
-      <div className="px-3.5 py-2.5 bg-zinc-50/80 border-b border-zinc-200/70 flex items-center justify-between">
+      <div className="px-3.5 py-2 bg-zinc-50/80 border-b border-zinc-200/70 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
           <span className="text-[11px] font-bold text-zinc-900 tracking-tight">
-            Case Intake Checklist
+            Case Intake Details
+          </span>
+          <span className="text-[10px] font-mono font-medium text-zinc-500">
+            ({countFilled}/{countTotal} captured)
           </span>
         </div>
-        <span className="text-[10px] font-mono font-medium text-zinc-500">
-          {countFilled} of {countTotal} captured ({progressPercent}%)
-        </span>
+        <button
+          type="button"
+          onClick={() => setIsExpanded(false)}
+          className="text-[10px] font-semibold text-zinc-500 hover:text-zinc-800 px-1.5 py-0.5 rounded hover:bg-zinc-200/50 transition"
+        >
+          Hide Details ▲
+        </button>
       </div>
 
       {/* Thin Micro Progress Bar */}

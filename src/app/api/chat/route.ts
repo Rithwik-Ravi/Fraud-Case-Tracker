@@ -85,14 +85,10 @@ Your objective is to conversationally interview the victim, gather their inciden
 
 Behavior Guidelines:
 1. Speak with calm empathy and reassuring clarity.
-2. Structure your "reply" into two parts:
-   Part 1: A warm, empathetic acknowledgement of what the citizen shared, confirming details captured so far.
-   Part 2: Following up with their Case Intake Checklist, explain in proper procedural and statutory terms why pending details are needed for their SPECIFIC crime type:
-   - For Financial Fraud: explain that 12-digit UTR and suspect UPI/account are needed for 1930 / CFCFRMS automated lien freezes and BNSS Sec 94 debit-freeze notices before cash is withdrawn.
-   - For Cryptocurrency: explain that the blockchain Transaction Hash (TxID) and suspect wallet address are needed to trace coin flow across ledgers and request exchange blacklists.
-   - For Ransomware / Hacking: explain that the ransom note, encrypted file extension, or target server IP are required by CERT-In and state cyber cells to analyze the malware strain and contain network intrusion.
-   - For Social Media Impersonation / Fake Profiles: explain that the imposter URL and genuine profile URL are needed to serve mandatory 24-hour takedown notices under IT Rule 3(2)(b).
-   - For Women & Children / Sextortion: explain that preserving unedited chat logs and suspect numbers establishes criminal intimidation under BNS Sec 351/308, and assure the victim that they have the statutory right under NCRP to report anonymously without disclosing their identity.
+2. Structure your "reply" naturally and conversationally:
+   - Acknowledge what the citizen shared with warmth, reassuring clarity, and confirm any key facts captured.
+   - If they are describing an incident, ask conversationally for 1 or 2 specific missing details (such as the 12-digit UTR, suspect UPI/handle, or ransom note) so you can assist in freezing suspect funds or preserving evidence.
+   - IMPORTANT: Do NOT generate long bulleted lists, tables, or checklists of all missing fields in your text reply! Keep your response brief, human, and conversational (2-3 concise paragraphs maximum).
 3. Field Extraction: Extract all relevant fields into the draft according to the category.
 4. Output format: You MUST reply ONLY with a valid JSON object matching this schema:
 {
@@ -356,39 +352,11 @@ export async function POST(req: NextRequest) {
             if (draft) {
               const explanations = getStatutoryFieldExplanations(draft);
 
-              if (explanations.length > 0) {
-                // Check if reply already explicitly articulates the explanations in proper terms
-                const hasDetailedBreakdown =
-                  explanations.length <= 2 &&
-                  explanations.every((exp) =>
-                    replyText.toLowerCase().includes(exp.fieldKey.toLowerCase().slice(0, 4)) ||
-                    replyText.toLowerCase().includes(exp.name.toLowerCase().slice(0, 6))
-                  ) &&
-                  (replyText.includes("1930") || replyText.includes("BNSS") || replyText.includes("CFCFRMS") || replyText.includes("freeze"));
-
-                if (!hasDetailedBreakdown) {
-                  // Clean off any redundant trailing call-to-action before appending structured breakdown
-                  replyText = replyText
-                    .replace(/\n\n\*You can reply directly[\s\S]*$/i, "")
-                    .replace(/\n\n\*\*To ensure your complaint carries statutory[\s\S]*$/i, "")
-                    .replace(/\n\n\*\*Following up with your Case Intake Checklist[\s\S]*$/i, "")
-                    .trim();
-
-                  const missingSection =
-                    "\n\n**Following up with your Case Intake Checklist, here is why law enforcement and your bank specifically need you to fill in the remaining details:**\n\n" +
-                    explanations
-                      .map((exp, idx) => `${idx + 1}. **${exp.name}**:\n   ${exp.reason}`)
-                      .join("\n\n") +
-                    "\n\n*You can reply directly here with any details you have, or click 'Transfer to Form' below to fill them into the official report.*";
-
-                  replyText = replyText + missingSection;
-                }
-              } else {
-                if (!replyText.toLowerCase().includes("transfer to form") && !replyText.toLowerCase().includes("ready")) {
-                  replyText =
-                    replyText.trim() +
-                    "\n\n**All critical statutory details have been captured!** Your complaint now contains the certified identifiers needed for police FIR registration under BNSS and an emergency bank lien freeze under 1930 / CFCFRMS. Please click **Transfer to Form** below to review and submit your official filing.";
-                }
+              // If everything is completely captured, provide a brief ready prompt if not already present
+              if (explanations.length === 0 && !replyText.toLowerCase().includes("transfer to form") && !replyText.toLowerCase().includes("ready")) {
+                replyText =
+                  replyText.trim() +
+                  "\n\nAll key details have been captured! You can click **Transfer to Form** below to proceed with your official filing.";
               }
             }
 
@@ -555,18 +523,14 @@ function generateReportingFallback(messages: ChatMessage[]): { reply: string; dr
   };
 
   const explanations = getStatutoryFieldExplanations(draft);
-  let reply = "Thank you for sharing this. I have recorded your incident facts in the checklist below.\n\n";
+  let reply = "Thank you for sharing what happened. I have recorded your incident details.\n\n";
 
   if (explanations.length > 0) {
-    reply +=
-      "**Following up with your Case Intake Checklist, here is why law enforcement and your bank specifically need you to fill in the remaining details:**\n\n" +
-      explanations
-        .map((exp, idx) => `${idx + 1}. **${exp.name}**:\n   ${exp.reason}`)
-        .join("\n\n") +
-      "\n\n*You can reply directly here with any details you have, or click 'Transfer to Form' below to fill them into the official report.*";
+    const keyDetail = explanations[0]?.name || "the transaction reference or suspect contact";
+    reply += `To assist cyber cells in investigating and freezing suspect channels, could you also share **${keyDetail}** if available? You can reply directly here or review your captured details below.`;
   } else {
     reply +=
-      "**All critical statutory details have been captured!** Your complaint now contains the certified identifiers needed for police FIR registration under BNSS and an emergency bank lien freeze under 1930 / CFCFRMS. Please click **Transfer to Form** below to review and submit your official filing.";
+      "All critical statutory details have been captured! You can click **Transfer to Form** below to review and submit your official filing.";
   }
 
   return { reply, draft };
