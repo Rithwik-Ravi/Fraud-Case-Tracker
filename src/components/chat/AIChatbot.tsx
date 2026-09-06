@@ -25,6 +25,7 @@ import {
   Square,
 } from "lucide-react";
 import { useAssist } from "@/context/AssistContext";
+import { useLang } from "@/context/LanguageContext";
 import { SpeechController } from "@/lib/voice";
 
 interface Message {
@@ -87,10 +88,12 @@ const REPORTING_PROMPTS = [
 
 export default function AIChatbot() {
   const router = useRouter();
+  const { t, lang } = useLang();
 
-  // Keep chat window open at all times by default as requested
-  const [isOpen, setIsOpen] = useState(true);
-  const [isMinimized, setIsMinimized] = useState(false);
+  // Chat window state: closed by default with floating robot icon and initial welcoming speech bubble
+  const [isOpen, setIsOpen] = useState(false);
+  const [showSpeechBubble, setShowSpeechBubble] = useState(true);
+  const [bubbleInput, setBubbleInput] = useState("");
   const [chatMode, setChatMode] = useState<"advisory" | "reporting">("reporting");
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -126,8 +129,17 @@ export default function AIChatbot() {
 
   // ── Speech Recognition (Voice to Text) ─────────────────────────────────────
   const [isListening, setIsListening] = useState(false);
-  const [speechLang, setSpeechLang] = useState<"hi-IN" | "en-IN">("en-IN");
+  const [speechLang, setSpeechLang] = useState<"hi-IN" | "en-IN">(lang === "hi" ? "hi-IN" : "en-IN");
   const recognitionRef = useRef<any>(null);
+
+  // Sync speech input language with site language
+  useEffect(() => {
+    if (lang === "hi") {
+      setSpeechLang("hi-IN");
+    } else {
+      setSpeechLang("en-IN");
+    }
+  }, [lang]);
 
   // Initialize browser speech recognition
   useEffect(() => {
@@ -245,10 +257,10 @@ export default function AIChatbot() {
   };
 
   useEffect(() => {
-    if (isOpen && !isMinimized) {
+    if (isOpen) {
       scrollToBottom();
     }
-  }, [currentMessages, isOpen, isMinimized, chatMode]);
+  }, [currentMessages, isOpen, chatMode]);
 
   const handleSend = async (textToSend?: string) => {
     const query = (textToSend || input).trim();
@@ -401,38 +413,121 @@ export default function AIChatbot() {
 
   return (
     <>
-      {/* Floating Trigger Launcher Button (Fallback if closed) */}
+      {/* Floating Robot Icon Launcher & Entry Speech Bubble (When drawer is closed) */}
       {!isOpen && (
-        <div className="fixed bottom-5 right-5 z-40">
+        <div className="fixed bottom-5 right-5 z-50 flex flex-col items-end gap-3 pointer-events-auto">
+          {/* Conversational Speech Bubble appearing on entry */}
+          {showSpeechBubble && (
+            <div
+              className="relative w-[320px] sm:w-[360px] max-w-[calc(100vw-2.5rem)] rounded-2xl border-2 border-ink-900 bg-white p-4 shadow-2xl transition-all duration-300 animate-in fade-in slide-in-from-bottom-3 select-none"
+              role="region"
+              aria-label="CasePilot AI Assistant Greeting"
+            >
+              {/* Speech bubble caret pointing down towards robot button */}
+              <div
+                className="absolute -bottom-2.5 right-7 sm:right-8 h-4 w-4 rotate-45 border-b-2 border-r-2 border-ink-900 bg-white"
+                aria-hidden="true"
+              />
+
+              {/* Header inside bubble */}
+              <div className="flex items-center justify-between gap-2 border-b border-ink-100 pb-2 mb-2.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                  </span>
+                  <span className="text-[11px] font-extrabold uppercase tracking-wider text-brand-700 flex items-center gap-1">
+                    <Bot className="h-3.5 w-3.5 text-brand-600" />
+                    {t("chat.bubbleTitle") || "CasePilot 24/7 AI"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowSpeechBubble(false);
+                  }}
+                  className="rounded-ux p-1 text-ink-400 hover:text-ink-800 hover:bg-ink-100 transition"
+                  title="Dismiss message"
+                  aria-label="Dismiss message"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              {/* Conversational Text */}
+              <div
+                onClick={() => {
+                  setIsOpen(true);
+                  setShowSpeechBubble(false);
+                }}
+                className="cursor-pointer group"
+              >
+                <p className="text-xs sm:text-sm font-semibold text-ink-900 leading-snug group-hover:text-brand-700 transition">
+                  {t("chat.bubbleGreeting") ||
+                    "Did something happen? I'm here to help you step-by-step. Just describe what happened or click here to chat!"}
+                </p>
+              </div>
+
+              {/* Quick Input Form */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  const q = bubbleInput.trim();
+                  setIsOpen(true);
+                  setShowSpeechBubble(false);
+                  if (q) {
+                    handleSend(q);
+                    setBubbleInput("");
+                  }
+                }}
+                className="mt-3 flex items-center gap-1.5"
+              >
+                <input
+                  type="text"
+                  value={bubbleInput}
+                  onChange={(e) => setBubbleInput(e.target.value)}
+                  placeholder={t("chat.bubblePlaceholder") || "Describe what happened..."}
+                  className="flex-1 rounded-ux border-2 border-ink-200 bg-ink-50 px-3 py-1.5 text-xs text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:bg-white focus:outline-none transition"
+                />
+                <button
+                  type="submit"
+                  className="inline-flex items-center justify-center rounded-ux bg-brand-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-brand-600 transition shadow-xs shrink-0 gap-1"
+                  title={t("chat.bubbleAction") || "Ask AI"}
+                >
+                  <span>{t("chat.bubbleAction") || "Ask AI"}</span>
+                  <Send className="h-3 w-3" />
+                </button>
+              </form>
+            </div>
+          )}
+
+          {/* Floating Robot Icon Button */}
           <button
             type="button"
-            onClick={() => setIsOpen(true)}
-            className="group flex items-center gap-3 rounded-ux border-2 border-ink-900 bg-ink-900 px-4 py-3 text-white shadow-xl hover:bg-ink-800 transition"
-            aria-label="Open 24/7 AI Cyber Incident Assistant"
+            onClick={() => {
+              setIsOpen(true);
+              setShowSpeechBubble(false);
+            }}
+            className="relative group flex h-14 w-14 sm:h-16 sm:w-16 items-center justify-center rounded-2xl border-2 border-ink-900 bg-gradient-to-tr from-brand-600 via-brand-500 to-brand-400 text-white shadow-2xl hover:shadow-brand-500/40 hover:scale-105 active:scale-95 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-brand-400/40"
+            aria-label={t("chat.robotAria") || "Open CasePilot AI Cyber Incident Assistant"}
+            title="CasePilot AI Assistant"
           >
-            <span className="relative flex h-3 w-3">
+            {/* Live 24/7 status indicator dot */}
+            <span className="absolute -top-1 -right-1 flex h-4 w-4">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+              <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-white"></span>
             </span>
-            <div className="text-left">
-              <span className="block text-xs font-bold uppercase tracking-wider text-ink-300">
-                24/7 AI Assistant
-              </span>
-              <span className="block text-sm font-extrabold text-white">
-                Advice & Guided Report
-              </span>
-            </div>
-            <MessageSquare className="h-5 w-5 text-ink-200 group-hover:text-white transition" aria-hidden="true" />
+
+            <Bot className="h-7 w-7 sm:h-8 sm:w-8 text-white group-hover:rotate-6 transition-transform duration-200" />
           </button>
         </div>
       )}
 
-      {/* Chat Drawer Window (Kept open at all times) */}
+      {/* Chat Drawer Window (When expanded) */}
       {isOpen && (
         <div
-          className={`fixed bottom-4 right-4 z-50 w-[calc(100vw-2rem)] sm:w-[440px] max-w-lg border-2 border-ink-900 bg-white shadow-2xl transition-all ${
-            isMinimized ? "h-14" : "h-[640px] max-h-[90vh]"
-          } flex flex-col`}
+          className="fixed bottom-4 right-4 z-50 w-[calc(100vw-2rem)] sm:w-[440px] max-w-lg border-2 border-ink-900 bg-white shadow-2xl h-[640px] max-h-[90vh] flex flex-col animate-in fade-in slide-in-from-bottom-4 duration-200"
           role="dialog"
           aria-label="CasePilot AI Cyber Assistant"
         >
@@ -444,14 +539,14 @@ export default function AIChatbot() {
               </span>
               <div>
                 <h2 className="text-sm font-extrabold tracking-tight leading-none text-white">
-                  CasePilot AI Assistant
+                  {t("chat.title") || "CasePilot AI Assistant"}
                 </h2>
                 <span className="text-[11px] font-medium text-ink-300">
                   {engineStatus === "openai"
-                    ? "Active: OpenAI gpt-4o-mini"
+                    ? (t("chat.activeOpenAi") || "Active: OpenAI gpt-4o-mini")
                     : engineStatus === "offline"
-                    ? "Active: Offline Engine"
-                    : "Live Incident Triage Desk"}
+                    ? (t("chat.activeOffline") || "Active: Offline Engine")
+                    : (t("chat.activeTriage") || "Live Incident Triage Desk")}
                 </span>
               </div>
             </div>
@@ -475,12 +570,16 @@ export default function AIChatbot() {
                 {voiceAssistance ? (
                   <>
                     <Volume2 className="h-4 w-4 text-emerald-400 animate-pulse" />
-                    <span className="text-[10px] font-bold text-emerald-400 hidden sm:inline">Grace ON</span>
+                    <span className="text-[10px] font-bold text-emerald-400 hidden sm:inline">
+                      {t("chat.graceOn") || "Grace ON"}
+                    </span>
                   </>
                 ) : (
                   <>
                     <VolumeX className="h-4 w-4" />
-                    <span className="text-[10px] font-medium text-ink-400 hidden sm:inline">Voice</span>
+                    <span className="text-[10px] font-medium text-ink-400 hidden sm:inline">
+                      {t("chat.voice") || "Voice"}
+                    </span>
                   </>
                 )}
               </button>
@@ -494,25 +593,15 @@ export default function AIChatbot() {
               </button>
               <button
                 type="button"
-                onClick={() => setIsMinimized(!isMinimized)}
-                title={isMinimized ? "Expand" : "Minimize"}
+                onClick={() => setIsOpen(false)}
+                title="Close assistant"
                 className="p-1.5 text-ink-300 hover:text-white rounded-ux hover:bg-ink-800 transition"
-              >
-                {isMinimized ? <Maximize2 className="h-4 w-4" /> : <Minimize2 className="h-4 w-4" />}
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsMinimized(true)}
-                title="Minimize assistant"
-                className="p-1.5 text-ink-300 hover:text-white rounded-ux hover:bg-ink-800 transition"
+                aria-label="Close assistant"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
           </div>
-
-          {!isMinimized && (
-            <>
               {/* Mode Switcher Tabs */}
               <div className="flex items-center border-b border-ink-200 bg-white">
                 <button
@@ -525,9 +614,9 @@ export default function AIChatbot() {
                   }`}
                 >
                   <FileText className="h-3.5 w-3.5" />
-                  <span>Report Incident</span>
+                  <span>{t("chat.reportTab") || "Report Incident"}</span>
                   <span className="rounded bg-emerald-100 text-emerald-800 text-[9px] px-1 py-0.2 font-mono uppercase tracking-wider">
-                    Live Intake
+                    {t("chat.liveIntake") || "Live Intake"}
                   </span>
                 </button>
 
@@ -541,7 +630,7 @@ export default function AIChatbot() {
                   }`}
                 >
                   <Bot className="h-3.5 w-3.5" />
-                  <span>Ask & Guidance</span>
+                  <span>{t("chat.guidanceTab") || "Ask & Guidance"}</span>
                 </button>
               </div>
 
@@ -551,14 +640,14 @@ export default function AIChatbot() {
                   <div className="flex items-center gap-2">
                     <AlertTriangle className="h-4 w-4 text-danger-600 shrink-0" />
                     <span className="text-[11px] font-semibold">
-                      Active Emergency? Call 1930 directly.
+                      {t("chat.emergencyNotice") || "Active Emergency? Call 1930 directly."}
                     </span>
                   </div>
                   <a
                     href="tel:1930"
                     className="rounded-ux bg-danger-600 px-2 py-0.5 font-bold text-white text-[10px] hover:bg-danger-700 transition"
                   >
-                    Dial 1930
+                    {t("chat.dial1930") || "Dial 1930"}
                   </a>
                 </div>
               )}
@@ -612,12 +701,12 @@ export default function AIChatbot() {
                           {playingMsgId === msg.id ? (
                             <>
                               <Square className="h-2.5 w-2.5 text-brand-600 fill-brand-600 animate-pulse" />
-                              <span>Stop Grace</span>
+                              <span>{t("chat.stopGrace") || "Stop Grace"}</span>
                             </>
                           ) : (
                             <>
                               <Volume2 className="h-2.5 w-2.5 text-zinc-500" />
-                              <span>Listen (Grace)</span>
+                              <span>{t("chat.listenGrace") || "Listen (Grace)"}</span>
                             </>
                           )}
                         </button>
@@ -643,7 +732,9 @@ export default function AIChatbot() {
               {currentMessages.length <= 2 && (
                 <div className="border-t border-ink-200 bg-white p-2.5 space-y-1.5">
                   <span className="block text-[11px] font-bold uppercase tracking-wider text-ink-500">
-                    {chatMode === "advisory" ? "Common Emergency Questions" : "Common Incident Scenarios"}
+                    {chatMode === "advisory"
+                      ? (t("chat.commonQuestions") || "Common Emergency Questions")
+                      : (t("chat.commonScenarios") || "Common Incident Scenarios")}
                   </span>
                   <div className="flex flex-wrap gap-1.5">
                     {currentPrompts.map((prompt, i) => (
@@ -738,9 +829,7 @@ export default function AIChatbot() {
                   placeholder={
                     isListening
                       ? "Listening to your voice..."
-                      : chatMode === "reporting"
-                      ? "Describe what happened, or tap mic to speak..."
-                      : "Ask question, or tap mic to speak..."
+                      : (t("chat.inputPlaceholder") || "Describe what happened, or tap mic to speak...")
                   }
                   disabled={loading}
                   className={`flex-1 rounded-ux border px-3 py-2 text-xs text-ink-900 placeholder:text-ink-400 focus:outline-none transition ${
@@ -759,8 +848,6 @@ export default function AIChatbot() {
                   <Send className="h-4 w-4" />
                 </button>
               </form>
-            </>
-          )}
         </div>
       )}
     </>

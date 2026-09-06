@@ -232,7 +232,7 @@ export default function Header() {
                 CasePilot
               </span>
               <span className="block text-xs font-medium text-ink-500">
-                Citizen cyber incident triage & statutory routing
+                {t("chrome.brandTagline") || "Citizen cyber incident triage & statutory routing"}
               </span>
             </span>
           </Link>
@@ -241,14 +241,16 @@ export default function Header() {
           <div className="flex items-center gap-3">
             <div className="hidden sm:block text-right">
               <span className="block text-[11px] font-bold uppercase tracking-wider text-danger-600">
-                National Cyber Helpline
+                {t("chrome.helplineTitle") || "National Cyber Helpline"}
               </span>
-              <span className="block text-xs text-ink-500">Available 24 hours daily</span>
+              <span className="block text-xs text-ink-500">
+                {t("chrome.helpline24h") || "Available 24 hours daily"}
+              </span>
             </div>
             <a
               href="tel:1930"
               className="ux-target inline-flex shrink-0 items-center gap-2 rounded-ux bg-danger-500 px-3.5 py-2 text-sm font-bold text-white hover:bg-danger-600 transition"
-              aria-label="Dial 1930 National Cyber Helpline"
+              aria-label={t("chrome.call") || "Dial 1930 National Cyber Helpline"}
             >
               <svg
                 viewBox="0 0 24 24"
@@ -260,7 +262,7 @@ export default function Header() {
               >
                 <path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.5 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.2a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"></path>
               </svg>
-              <span>Call 1930</span>
+              <span>{t("chrome.call") || "Call 1930"}</span>
             </a>
           </div>
         </div>

@@ -37,6 +37,7 @@ import {
   Building2,
   AlertTriangle,
   ArrowRight,
+  ArrowLeft,
   RotateCcw,
   Copy,
   Check,
@@ -74,6 +75,7 @@ export default function ReportPage() {
   // Local state override for guided vs standard within report
   const [useGuided, setUseGuided] = useState<boolean>(false);
   const [currentStep, setCurrentStep] = useState<ReportStep>("NARRATIVE");
+  const [showResetModal, setShowResetModal] = useState<boolean>(false);
 
   // Step 1: Narrative inputs
   const [narrative, setNarrative] = useState("");
@@ -246,6 +248,38 @@ export default function ReportPage() {
     if (foundDist) {
       setPoliceStation(foundDist.policeStation);
     }
+  };
+
+  const handleResetForm = () => {
+    setNarrative("");
+    setTriageResult(null);
+    setSelectedCategory(null);
+    setExtractedPills([]);
+    setAmount("");
+    setBankAccount("");
+    setBankName("");
+    setTransactionId("");
+    setSuspectAccount("");
+    setSuspectName("");
+    setSuspectPhone("");
+    setSuspectHandle("");
+    setSuspectWebsite("");
+    setSuspectDetails("");
+    setFreezeRequested(false);
+    setFreezeMessage("");
+    setEvidenceFiles([]);
+    setUndertakingAccepted(false);
+    setAckNumber(null);
+    setErrorMessage("");
+    setDraftBannerMessage("");
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.removeItem("casepilot_chatbot_draft");
+      } catch {}
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+    setCurrentStep("NARRATIVE");
+    setShowResetModal(false);
   };
 
   // PDF download helper
@@ -781,112 +815,94 @@ export default function ReportPage() {
         </div>
       )}
 
-      {/* 6-Stage Stepper Header */}
-      <ol className="mb-8 flex flex-wrap items-center gap-x-2 gap-y-2 text-xs sm:text-sm" aria-label="Progress">
-        <li className="flex items-center gap-1.5">
-          <span
-            className={`grid h-6 w-6 place-items-center rounded-full text-xs font-bold ${
-              currentStep === "NARRATIVE"
-                ? "bg-brand-500 text-white"
-                : "bg-brand-100 text-brand-700"
-            }`}
-          >
-            1
-          </span>
-          <span className={currentStep === "NARRATIVE" ? "font-semibold text-ink-900" : "text-ink-600"}>
-            Incident
-          </span>
-          <span aria-hidden="true" className="text-ink-300">›</span>
-        </li>
+      {/* Stepper Header with Back-and-Forth Navigation & Reset Option */}
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-ink-100 pb-4">
+        <ol className="flex flex-wrap items-center gap-x-2 gap-y-2 text-xs sm:text-sm" aria-label="Progress">
+          {[
+            { key: "NARRATIVE" as ReportStep, num: 1, labelKey: "report.stepIncident", fallback: "Incident" },
+            { key: "FREEZE" as ReportStep, num: 2, labelKey: "report.stepFreeze", fallback: "Freeze" },
+            { key: "DETAILS" as ReportStep, num: 3, labelKey: "report.stepSuspect", fallback: "Suspect" },
+            { key: "KYC" as ReportStep, num: 4, labelKey: "report.stepKyc", fallback: "KYC & Station" },
+            { key: "EVIDENCE" as ReportStep, num: 5, labelKey: "report.stepEvidence", fallback: "Evidence" },
+            { key: "REVIEW" as ReportStep, num: 6, labelKey: "report.stepReview", fallback: "Review" },
+          ].map((s, idx, arr) => {
+            const isActive = currentStep === s.key;
+            const canGoBack = stepNumbers[currentStep] > s.num;
+            const isFuture = stepNumbers[currentStep] < s.num;
 
-        {/* Emergency Freeze Step (Shown or skipped) */}
-        <li className="flex items-center gap-1.5">
-          <span
-            className={`grid h-6 w-6 place-items-center rounded-full text-xs font-bold ${
-              currentStep === "FREEZE"
-                ? "bg-danger-600 text-white"
-                : stepNumbers[currentStep] > 2
-                ? "bg-brand-100 text-brand-700"
-                : "bg-ink-200 text-ink-600"
-            }`}
-          >
-            2
-          </span>
-          <span className={currentStep === "FREEZE" ? "font-semibold text-danger-700" : "text-ink-500"}>
-            Freeze
-          </span>
-          <span aria-hidden="true" className="text-ink-300">›</span>
-        </li>
+            if (canGoBack) {
+              return (
+                <li key={s.key} className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep(s.key)}
+                    className="flex items-center gap-1.5 hover:opacity-75 transition cursor-pointer group focus:outline-none"
+                    title={`Go back to step ${s.num}: ${t(s.labelKey) || s.fallback}`}
+                  >
+                    <span className="grid h-6 w-6 place-items-center rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 group-hover:bg-emerald-200 transition">
+                      <Check className="h-3.5 w-3.5 stroke-[3]" />
+                    </span>
+                    <span className="text-xs sm:text-sm font-semibold text-emerald-800 group-hover:underline">
+                      {t(s.labelKey) || s.fallback}
+                    </span>
+                  </button>
+                  {idx < arr.length - 1 && (
+                    <span aria-hidden="true" className="text-ink-300 select-none ml-1">
+                      ›
+                    </span>
+                  )}
+                </li>
+              );
+            }
 
-        <li className="flex items-center gap-1.5">
-          <span
-            className={`grid h-6 w-6 place-items-center rounded-full text-xs font-bold ${
-              currentStep === "DETAILS"
-                ? "bg-brand-500 text-white"
-                : stepNumbers[currentStep] > 3
-                ? "bg-brand-100 text-brand-700"
-                : "bg-ink-200 text-ink-600"
-            }`}
-          >
-            3
-          </span>
-          <span className={currentStep === "DETAILS" ? "font-semibold text-ink-900" : "text-ink-500"}>
-            Suspect
-          </span>
-          <span aria-hidden="true" className="text-ink-300">›</span>
-        </li>
+            return (
+              <li key={s.key} className="flex items-center gap-1.5 select-none">
+                <div
+                  className={`flex items-center gap-1.5 ${
+                    isFuture ? "opacity-45 cursor-not-allowed" : "cursor-default"
+                  }`}
+                  aria-current={isActive ? "step" : undefined}
+                >
+                  <span
+                    className={`grid h-6 w-6 place-items-center rounded-full text-xs font-bold ${
+                      isActive
+                        ? "bg-brand-500 text-white shadow-xs scale-105"
+                        : "bg-ink-100 text-ink-500"
+                    }`}
+                  >
+                    {s.num}
+                  </span>
+                  <span
+                    className={`text-xs sm:text-sm ${
+                      isActive
+                        ? "font-extrabold text-ink-900 underline underline-offset-4 decoration-brand-500 decoration-2"
+                        : "text-ink-400 font-medium"
+                    }`}
+                  >
+                    {t(s.labelKey) || s.fallback}
+                  </span>
+                </div>
+                {idx < arr.length - 1 && (
+                  <span aria-hidden="true" className="text-ink-300 select-none ml-1">
+                    ›
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ol>
 
-        <li className="flex items-center gap-1.5">
-          <span
-            className={`grid h-6 w-6 place-items-center rounded-full text-xs font-bold ${
-              currentStep === "KYC"
-                ? "bg-brand-500 text-white"
-                : stepNumbers[currentStep] > 4
-                ? "bg-brand-100 text-brand-700"
-                : "bg-ink-200 text-ink-600"
-            }`}
-          >
-            4
-          </span>
-          <span className={currentStep === "KYC" ? "font-semibold text-ink-900" : "text-ink-500"}>
-            KYC & Station
-          </span>
-          <span aria-hidden="true" className="text-ink-300">›</span>
-        </li>
-
-        <li className="flex items-center gap-1.5">
-          <span
-            className={`grid h-6 w-6 place-items-center rounded-full text-xs font-bold ${
-              currentStep === "EVIDENCE"
-                ? "bg-brand-500 text-white"
-                : stepNumbers[currentStep] > 5
-                ? "bg-brand-100 text-brand-700"
-                : "bg-ink-200 text-ink-600"
-            }`}
-          >
-            5
-          </span>
-          <span className={currentStep === "EVIDENCE" ? "font-semibold text-ink-900" : "text-ink-500"}>
-            Evidence
-          </span>
-          <span aria-hidden="true" className="text-ink-300">›</span>
-        </li>
-
-        <li className="flex items-center gap-1.5">
-          <span
-            className={`grid h-6 w-6 place-items-center rounded-full text-xs font-bold ${
-              currentStep === "REVIEW"
-                ? "bg-brand-500 text-white"
-                : "bg-ink-200 text-ink-600"
-            }`}
-          >
-            6
-          </span>
-          <span className={currentStep === "REVIEW" ? "font-semibold text-ink-900" : "text-ink-500"}>
-            Review
-          </span>
-        </li>
-      </ol>
+        {/* Start New Report / Reset Form Button */}
+        <button
+          type="button"
+          onClick={() => setShowResetModal(true)}
+          className="inline-flex items-center gap-1.5 rounded-ux border border-ink-200 bg-white px-3 py-1.5 text-xs font-semibold text-ink-600 hover:border-danger-300 hover:bg-danger-50/50 hover:text-danger-700 transition shrink-0 self-start sm:self-auto shadow-2xs"
+          title="Reset the complaint form to step 1"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+          <span>{t("report.startNew") || "Start New Report / Reset"}</span>
+        </button>
+      </div>
 
       {/* AI Chatbot Imported Draft Alert Banner */}
       {draftBannerMessage && (
@@ -1214,13 +1230,24 @@ export default function ReportPage() {
               )}
 
               <div className="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-ink-200">
-                <button
-                  type="button"
-                  onClick={() => setCurrentStep("DETAILS")}
-                  className="text-sm font-semibold text-ink-600 hover:text-ink-900 underline"
-                >
-                  Skip freeze alert for now
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep("NARRATIVE")}
+                    className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink-600 hover:text-ink-900"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                    <span>{t("report.back") || "Back"}</span>
+                  </button>
+                  <span className="text-ink-300">|</span>
+                  <button
+                    type="button"
+                    onClick={() => setCurrentStep("DETAILS")}
+                    className="text-sm font-semibold text-ink-600 hover:text-ink-900 underline"
+                  >
+                    Skip freeze alert for now
+                  </button>
+                </div>
 
                 <Button type="submit" variant="danger" disabled={freezeLoading} className="py-3 px-6 text-base font-bold">
                   {freezeLoading ? "Transmitting freeze notice..." : "Dispatch Immediate Bank Freeze"}
@@ -1424,9 +1451,10 @@ export default function ReportPage() {
               <button
                 type="button"
                 onClick={() => setCurrentStep(triageResult?.isFinancialFraud && triageResult?.moneyMoved ? "FREEZE" : "NARRATIVE")}
-                className="text-sm font-semibold text-ink-600 hover:text-ink-900"
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink-600 hover:text-ink-900"
               >
-                Back
+                <ArrowLeft className="h-4 w-4" />
+                <span>{t("report.back") || "Back"}</span>
               </button>
 
               <Button
@@ -1668,9 +1696,10 @@ export default function ReportPage() {
               <button
                 type="button"
                 onClick={() => setCurrentStep("DETAILS")}
-                className="text-sm font-semibold text-ink-600 hover:text-ink-900"
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink-600 hover:text-ink-900"
               >
-                Back
+                <ArrowLeft className="h-4 w-4" />
+                <span>{t("report.back") || "Back"}</span>
               </button>
 
               <Button
@@ -1819,9 +1848,10 @@ export default function ReportPage() {
               <button
                 type="button"
                 onClick={() => setCurrentStep("KYC")}
-                className="text-sm font-semibold text-ink-600 hover:text-ink-900"
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink-600 hover:text-ink-900"
               >
-                Back
+                <ArrowLeft className="h-4 w-4" />
+                <span>{t("report.back") || "Back"}</span>
               </button>
 
               <Button
@@ -1958,9 +1988,10 @@ export default function ReportPage() {
               <button
                 type="button"
                 onClick={() => setCurrentStep("EVIDENCE")}
-                className="text-sm font-semibold text-ink-600 hover:text-ink-900"
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink-600 hover:text-ink-900"
               >
-                Edit Details
+                <ArrowLeft className="h-4 w-4" />
+                <span>{t("report.back") || "Back"}</span>
               </button>
 
               <Button
@@ -1974,6 +2005,40 @@ export default function ReportPage() {
               </Button>
             </div>
           </Card>
+        </div>
+      )}
+
+      {/* Safe Form Reset / Register New Incident Confirmation Modal */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/60 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md rounded-ux-xl border-2 border-ink-900 bg-white p-6 shadow-2xl animate-in fade-in zoom-in-95 duration-150">
+            <div className="flex items-center gap-2.5 text-danger-600 mb-3">
+              <RotateCcw className="h-5 w-5" />
+              <h3 className="text-lg font-bold text-ink-900">
+                {t("report.resetTitle") || "Start a New Crime Report?"}
+              </h3>
+            </div>
+            <p className="text-sm text-ink-600 leading-relaxed">
+              {t("report.resetBody") ||
+                "This will clear your current inputs and reset the form to Step 1, allowing you to report a completely different incident from scratch."}
+            </p>
+            <div className="mt-6 flex flex-col sm:flex-row items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setShowResetModal(false)}
+                className="w-full sm:w-auto rounded-ux border-2 border-ink-200 bg-white px-4 py-2 text-xs font-semibold text-ink-700 hover:bg-ink-50 transition"
+              >
+                {t("report.resetCancel") || "Cancel (Keep Current Data)"}
+              </button>
+              <button
+                type="button"
+                onClick={handleResetForm}
+                className="w-full sm:w-auto rounded-ux bg-danger-600 px-4 py-2 text-xs font-bold text-white hover:bg-danger-700 transition shadow-xs"
+              >
+                {t("report.resetConfirm") || "Yes, Start New Report"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
