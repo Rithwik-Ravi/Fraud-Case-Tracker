@@ -21,7 +21,7 @@ export interface SerializedComplaint {
   freezeRequested: boolean;
   stage: number;
   createdAt: string;
-  evidenceFiles?: Array<{ name: string; size: number; sha256: string }>;
+  evidenceFiles?: Array<{ name: string; size: number; sha256: string; category?: string; dataUrl?: string }>;
   policeUnitAssigned?: string;
   daysRemainingInSla?: number;
   isSimulatedDemo?: boolean;

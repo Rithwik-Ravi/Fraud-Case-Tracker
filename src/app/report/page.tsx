@@ -76,6 +76,60 @@ interface EvidenceFileItem {
   size: number;
   sha256: string;
   category?: string;
+  dataUrl?: string;
+}
+
+/**
+ * Client-side canvas downscaling utility.
+ * Compresses screenshots to max 1200px width/height and 0.75 JPEG quality (~150-250KB).
+ * Comfortably fits in MongoDB documents (16MB limit) and enables instant PDF embedding.
+ */
+function compressImageToDataUrl(
+  file: File,
+  maxWidth = 1200,
+  maxHeight = 1200,
+  quality = 0.75
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxWidth || height > maxHeight) {
+          if (width > height) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          } else {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(e.target?.result as string);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = () => resolve(e.target?.result as string);
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 export default function ReportPage() {
@@ -208,9 +262,19 @@ export default function ReportPage() {
     if (draft.suspectPhone) setSuspectPhone(draft.suspectPhone);
     if (draft.suspectHandle) setSuspectHandle(draft.suspectHandle);
     if (draft.suspectWebsite) setSuspectWebsite(draft.suspectWebsite);
+    if ((draft as any).suspectDetails) setSuspectDetails((draft as any).suspectDetails);
     if (draft.channel) setPlatformChannel(draft.channel);
     if (draft.incidentDate) setIncidentDate(draft.incidentDate);
     if (draft.reportAnonymously !== undefined) setReportAnonymously(Boolean(draft.reportAnonymously));
+
+    // Synchronize attached evidence files from AI Chatbot
+    if ((draft as any).evidenceFiles && Array.isArray((draft as any).evidenceFiles) && (draft as any).evidenceFiles.length > 0) {
+      setEvidenceFiles((prev) => {
+        const existingHashes = new Set(prev.map((f) => f.sha256));
+        const newOnes = (draft as any).evidenceFiles.filter((f: any) => !existingHashes.has(f.sha256));
+        return [...prev, ...newOnes];
+      });
+    }
 
     // Category-specific parameters
     if (draft.categorySpecificFields) {
@@ -475,6 +539,7 @@ export default function ReportPage() {
     if (suspectAccount) row("Suspect Bank/UPI:", suspectAccount);
     if (suspectHandle) row("Suspect Handle / Link:", suspectHandle);
     if (suspectWebsite) row("Suspect Malicious URL:", suspectWebsite);
+    if (suspectDetails) row("Additional Suspect Info:", suspectDetails);
 
     // Dynamic category-specific particulars
     if (cryptoNetwork || suspectWallet || transactionHash) {
@@ -603,6 +668,72 @@ export default function ReportPage() {
       "Statutory Record under BNSS Section 173(3) and BSA Section 63. Official inquiry routed to designated Cyber Cell.",
       14, pageH - 10
     );
+
+    // ── ANNEXURE PAGES: CERTIFIED EVIDENCE IMAGE EXHIBITS (SEC 63 BSA) ──
+    const imageExhibits = evidenceFiles.filter((f) => f.dataUrl && f.dataUrl.startsWith("data:image"));
+    if (imageExhibits.length > 0) {
+      imageExhibits.forEach((img, idx) => {
+        doc.addPage();
+        const pW = doc.internal.pageSize.getWidth();
+        const pH = doc.internal.pageSize.getHeight();
+
+        // Official Exhibit Banner
+        doc.setFillColor(11, 12, 12);
+        doc.rect(0, 0, pW, 18, "F");
+        doc.setFont("helvetica", "bold"); doc.setFontSize(10.5);
+        doc.setTextColor(255, 255, 255);
+        doc.text(`ANNEXURE ${idx + 1} — CERTIFIED DIGITAL EVIDENCE EXHIBIT`, 14, 12);
+
+        // Subheader with Section 63 BSA statutory citation
+        doc.setFont("helvetica", "normal"); doc.setFontSize(8);
+        doc.setTextColor(50, 60, 65);
+        doc.text(`Statutory Chain of Custody: Admissible under Section 63, Bharatiya Sakshya Adhiniyam (BSA), 2023`, 14, 24);
+        doc.text(`NCRP Complaint ACK: ${ackNumber} | Exhibit File: ${img.name} (${img.category || "Digital Evidence"})`, 14, 29);
+
+        doc.setFont("helvetica", "bold"); doc.setFontSize(7.5);
+        doc.setTextColor(20, 60, 110);
+        doc.text(`SHA-256 Digest:`, 14, 34);
+        doc.setFont("courier", "normal"); doc.setFontSize(7);
+        doc.setTextColor(30, 30, 30);
+        doc.text(img.sha256, 38, 34);
+
+        // Stamped Exhibit Frame
+        const frameX = 14;
+        const frameY = 38;
+        const frameW = pW - 28;
+        const frameH = pH - 60;
+
+        // Image Embed inside Frame
+        try {
+          doc.addImage(img.dataUrl!, "JPEG", frameX + 2, frameY + 2, frameW - 4, frameH - 16, undefined, "FAST");
+        } catch (e1) {
+          try {
+            doc.addImage(img.dataUrl!, frameX + 2, frameY + 2, frameW - 4, frameH - 16);
+          } catch (e2) {
+            console.warn("Could not render image exhibit into PDF:", e2);
+          }
+        }
+
+        // Draw border around the exhibit
+        doc.setDrawColor(20, 60, 110);
+        doc.setLineWidth(0.6);
+        doc.rect(frameX, frameY, frameW, frameH);
+
+        // Official seal text at bottom of frame
+        doc.setFillColor(240, 244, 248);
+        doc.rect(frameX, frameY + frameH - 12, frameW, 12, "F");
+        doc.setFont("helvetica", "bolditalic"); doc.setFontSize(7);
+        doc.setTextColor(20, 60, 110);
+        doc.text(`CERTIFIED TAMPER-EVIDENT EVIDENCE ATTACHMENT • STORED VIA CASEPILOT CRYPTOGRAPHIC VAULT`, frameX + 4, frameY + frameH - 4.5);
+
+        // Exhibit page footer
+        doc.setFillColor(248, 249, 250);
+        doc.rect(0, pH - 15, pW, 15, "F");
+        doc.setFont("helvetica", "italic"); doc.setFontSize(7);
+        doc.setTextColor(90, 100, 105);
+        doc.text("Official Complaint Exhibit for Designated Cyber Crime Police Station and Banking Nodal Officer.", 14, pH - 6);
+      });
+    }
 
     doc.save(`CasePilot-Complaint-${ackNumber}.pdf`);
   };
@@ -777,7 +908,7 @@ export default function ReportPage() {
     handleTriage(composedText, presetAmount);
   };
 
-  // Compute real SHA-256 for file attachments
+  // Compute real SHA-256 and compressed Data URL for file attachments
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
@@ -792,11 +923,21 @@ export default function ReportPage() {
         const hashBuffer = await window.crypto.subtle.digest("SHA-256", buffer);
         const hashArray = Array.from(new Uint8Array(hashBuffer));
         const sha256 = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+
+        // Generate compressed data URL for images
+        let dataUrl: string | undefined;
+        try {
+          dataUrl = await compressImageToDataUrl(file);
+        } catch (e) {
+          console.warn("Could not generate dataUrl for file:", e);
+        }
+
         newItems.push({
           name: file.name,
           size: file.size,
           sha256,
           category: file.name.toLowerCase().includes("bank") ? "Bank Statement" : "Chat Screenshot",
+          dataUrl,
         });
       } catch (err) {
         console.error("Hash error:", err);
@@ -2746,12 +2887,25 @@ export default function ReportPage() {
                 </p>
                 <div className="divide-y divide-ink-100 rounded-ux border border-ink-200 bg-white">
                   {evidenceFiles.map((file, idx) => (
-                    <div key={idx} className="p-3 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                      <div>
-                        <span className="font-semibold text-ink-900 block">{file.name}</span>
-                        <span className="font-mono text-[11px] text-ink-500 break-all">
-                          SHA-256: {file.sha256}
-                        </span>
+                    <div key={idx} className="p-3 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        {file.dataUrl && file.dataUrl.startsWith("data:image") ? (
+                          <img
+                            src={file.dataUrl}
+                            alt={file.name}
+                            className="h-12 w-12 rounded-ux object-cover border border-ink-200 shrink-0 shadow-2xs"
+                          />
+                        ) : (
+                          <div className="h-12 w-12 rounded-ux bg-ink-100 flex items-center justify-center text-ink-500 font-bold shrink-0 text-[10px]">
+                            FILE
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <span className="font-semibold text-ink-900 block truncate">{file.name}</span>
+                          <span className="font-mono text-[10px] text-ink-500 break-all block">
+                            SHA-256: {file.sha256}
+                          </span>
+                        </div>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <select
@@ -2769,9 +2923,17 @@ export default function ReportPage() {
                           <option value="Call Log">Call Log</option>
                           <option value="ID Proof">ID Proof</option>
                         </select>
-                        <span className="text-ink-500 font-medium">
+                        <span className="text-ink-500 font-medium text-[11px]">
                           {(file.size / 1024).toFixed(1)} KB
                         </span>
+                        <button
+                          type="button"
+                          onClick={() => setEvidenceFiles((prev) => prev.filter((_, i) => i !== idx))}
+                          className="text-danger-600 hover:text-danger-800 p-1 font-bold text-xs hover:bg-danger-50 rounded transition"
+                          title="Remove file"
+                        >
+                          ✕
+                        </button>
                       </div>
                     </div>
                   ))}

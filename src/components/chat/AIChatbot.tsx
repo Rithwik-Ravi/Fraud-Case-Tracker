@@ -23,6 +23,7 @@ import {
   Mic,
   MicOff,
   Square,
+  Paperclip,
 } from "lucide-react";
 import { useAssist } from "@/context/AssistContext";
 import { useLang } from "@/context/LanguageContext";
@@ -33,8 +34,9 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: string;
-  source?: "openai" | "deterministic";
+  source?: "openai" | "deterministic" | "rule-engine";
   draft?: ChatReportDraft | null;
+  attachedImage?: string;
 }
 
 export interface ChatReportDraft {
@@ -81,6 +83,61 @@ export interface ChatReportDraft {
   extortionDemand?: string | null;
   reportAnonymously?: boolean;
   isReadyToReport?: boolean;
+  evidenceFiles?: Array<{
+    name: string;
+    size: number;
+    sha256: string;
+    category?: string;
+    dataUrl?: string;
+  }>;
+}
+
+function compressImageToDataUrl(
+  file: File,
+  maxWidth = 1200,
+  maxHeight = 1200,
+  quality = 0.75
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        let { width, height } = img;
+        if (width > maxWidth || height > maxHeight) {
+          if (width > height) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          } else {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(e.target?.result as string);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", quality));
+      };
+      img.onerror = () => resolve(e.target?.result as string);
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
 }
 
 const INITIAL_ADVISORY_MESSAGE: Message = {
@@ -131,7 +188,22 @@ export default function AIChatbot() {
 
   const [engineStatus, setEngineStatus] = useState<"ready" | "openai" | "offline">("ready");
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const evidenceInputRef = useRef<HTMLInputElement>(null);
+  const [pendingAttachment, setPendingAttachment] = useState<{ dataUrl: string; name: string } | null>(null);
   const { speak, assist } = useAssist();
+
+  // ── Evidence Image Attachment ──────────────────────────────────────────────
+  const handleEvidenceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const dataUrl = await compressImageToDataUrl(file);
+      setPendingAttachment({ dataUrl, name: file.name });
+    } catch {
+      // silently ignore
+    }
+    e.target.value = "";
+  };
 
   // ── Voice Assistance (Grace from ElevenLabs) ───────────────────────────────
   const [voiceAssistance, setVoiceAssistance] = useState(false);
@@ -291,13 +363,17 @@ export default function AIChatbot() {
 
   const handleSend = async (textToSend?: string) => {
     const query = (textToSend || input).trim();
-    if (!query || loading) return;
+    if (!query && !pendingAttachment || loading) return;
+
+    const attachment = pendingAttachment;
+    setPendingAttachment(null);
 
     const userMessage: Message = {
       id: `user-${Date.now()}`,
       role: "user",
-      content: query,
+      content: query || (attachment ? `[Attached screenshot: ${attachment.name}]` : ""),
       timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      attachedImage: attachment?.dataUrl,
     };
 
     if (chatMode === "advisory") {
@@ -695,8 +771,19 @@ export default function AIChatbot() {
                             : "border border-ink-300 bg-white text-ink-900 shadow-2xs"
                         }`}
                       >
+                        {/* Attached screenshot thumbnail (user messages) */}
+                        {msg.attachedImage && (
+                          <div className="mb-2">
+                            <img
+                              src={msg.attachedImage}
+                              alt="Attached screenshot"
+                              className="rounded-lg max-w-[200px] max-h-[140px] object-cover border border-white/20 shadow"
+                            />
+                          </div>
+                        )}
+
                         {/* Acknowledgement and guidance prose */}
-                        <FormattedMessageContent content={msg.content} />
+                        {msg.content && <FormattedMessageContent content={msg.content} />}
 
                         {/* STATUTORY FIELD INTAKE TABLE (Rendered ONLY on the latest assistant message when details are being filled) */}
                         {chatMode === "reporting" && msg.role === "assistant" && msg.draft && msg.id === latestAssistantId && (
@@ -819,6 +906,25 @@ export default function AIChatbot() {
               )}
 
               {/* Input Bar */}
+              {/* Pending attachment preview */}
+              {pendingAttachment && (
+                <div className="border-t border-ink-200 bg-amber-50 px-3 py-1.5 flex items-center gap-2">
+                  <img
+                    src={pendingAttachment.dataUrl}
+                    alt="Pending attachment"
+                    className="h-8 w-8 rounded object-cover border border-amber-300"
+                  />
+                  <span className="text-[10px] text-amber-800 font-medium flex-1 truncate">{pendingAttachment.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => setPendingAttachment(null)}
+                    className="text-amber-700 hover:text-amber-900 transition"
+                    aria-label="Remove attachment"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              )}
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -827,6 +933,16 @@ export default function AIChatbot() {
                 }}
                 className="border-t-2 border-ink-900 bg-white p-2.5 flex items-center gap-1.5"
               >
+                {/* Hidden image file input */}
+                <input
+                  type="file"
+                  ref={evidenceInputRef}
+                  accept="image/*"
+                  onChange={handleEvidenceUpload}
+                  className="hidden"
+                  aria-label="Attach screenshot evidence"
+                />
+
                 {/* Speech Input Language Switcher */}
                 <button
                   type="button"
@@ -835,6 +951,21 @@ export default function AIChatbot() {
                   className="rounded px-1.5 py-1 text-[10px] font-bold text-zinc-600 bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 shrink-0 transition"
                 >
                   {speechLang === "hi-IN" ? "हिन्दी" : "EN"}
+                </button>
+
+                {/* Attach Evidence Screenshot */}
+                <button
+                  type="button"
+                  onClick={() => evidenceInputRef.current?.click()}
+                  title="Attach screenshot / evidence image"
+                  className={`rounded-ux p-2 transition shrink-0 ${
+                    pendingAttachment
+                      ? "bg-amber-100 text-amber-700 border border-amber-300"
+                      : "bg-ink-100 text-ink-600 hover:bg-ink-200 hover:text-ink-900"
+                  }`}
+                  aria-label="Attach screenshot evidence"
+                >
+                  <Paperclip className="h-4 w-4" />
                 </button>
 
                 {/* Voice-to-Text Microphone Button */}
@@ -857,7 +988,9 @@ export default function AIChatbot() {
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   placeholder={
-                    isListening
+                    pendingAttachment
+                      ? "Add a note about this screenshot (optional)..."
+                      : isListening
                       ? "Listening to your voice..."
                       : (t("chat.inputPlaceholder") || "Describe what happened, or tap mic to speak...")
                   }
@@ -865,13 +998,15 @@ export default function AIChatbot() {
                   className={`flex-1 rounded-ux border px-3 py-2 text-xs text-ink-900 placeholder:text-ink-400 focus:outline-none transition ${
                     isListening
                       ? "border-red-400 bg-red-50/20"
+                      : pendingAttachment
+                      ? "border-amber-300 bg-amber-50/20"
                       : "border-ink-300 focus:border-ink-900"
                   }`}
                 />
 
                 <button
                   type="submit"
-                  disabled={loading || !input.trim()}
+                  disabled={loading || (!input.trim() && !pendingAttachment)}
                   className="rounded-ux bg-ink-900 p-2 text-white hover:bg-ink-800 disabled:opacity-50 transition shrink-0"
                   aria-label="Send message"
                 >
@@ -963,7 +1098,7 @@ function IntakeChecklistTable({
   const isSocialMedia = catId.includes("impersonation") || catId.includes("account_takeover") || catId.includes("stalking") || catId.includes("wc_defamation");
   const isWomenChildren = draft.section === "WOMEN_CHILDREN" || catId.includes("child") || catId.includes("sextortion") || catId.includes("blackmail");
 
-  const [isExpanded, setIsExpanded] = useState<boolean>(true);
+  const [isExpanded, setIsExpanded] = useState<boolean>(false);
 
   // Check whether user has actually entered/provided concrete details
   const hasConcreteDetails = Boolean(
@@ -998,13 +1133,14 @@ function IntakeChecklistTable({
     return null;
   }
 
-  // Dynamic Category-Aware Checklist Builder
-  const checklistItems = [
+  // Dynamic Category-Aware Checklist Builder (isMandatory = true means field must be filled for FIR)
+  const checklistItems: Array<{ id: string; name: string; desc: string; value: string | null; isMandatory?: boolean }> = [
     {
       id: "cat",
       name: "Crime Classification",
       desc: draft.subCategory ? `${draft.section || "NCRP"} • ${draft.subCategory}` : "Determines statutory sections under BNS & IT Act",
       value: draft.categoryLabel || null,
+      isMandatory: true,
     },
     ...(isCrypto
       ? [
@@ -1013,24 +1149,28 @@ function IntakeChecklistTable({
             name: "Transaction Hash (TxID)",
             desc: "On-chain ledger digest required under BSA Sec 63",
             value: draft.transactionHash || null,
+            isMandatory: true,
           },
           {
             id: "swal",
             name: "Suspect Destination Wallet",
             desc: "Target address for AML tracing & exchange blacklist",
             value: draft.suspectWallet || null,
+            isMandatory: true,
           },
           {
             id: "net",
             name: "Blockchain Network",
             desc: "e.g. Ethereum, Bitcoin, TRON, Solana",
             value: draft.cryptoNetwork || null,
+            isMandatory: true,
           },
           {
             id: "amt",
             name: "Estimated Value / Loss",
             desc: "Pecuniary restitution under BNSS 503",
             value: draft.amount ? `₹${Number(draft.amount).toLocaleString("en-IN")}` : null,
+            isMandatory: true,
           },
         ]
       : isRansomwareOrHacking
@@ -1040,18 +1180,21 @@ function IntakeChecklistTable({
             name: "Target Domain / Server IP",
             desc: "Perimeter isolation under Sec 43/66 IT Act",
             value: draft.targetDomain || draft.serverIp || null,
+            isMandatory: true,
           },
           {
             id: "ext",
             name: "Encrypted Extension",
             desc: "File extension (e.g. .locked, .phobos) for decryptor lookup",
             value: draft.encryptedExtension || null,
+            isMandatory: true,
           },
           {
             id: "ransom",
             name: "Ransom Contact / Wallet",
             desc: "Attacker email, Tor portal, or crypto address",
             value: draft.ransomWalletAddress || draft.ransomNoteFile || draft.suspectWebsite || null,
+            isMandatory: false,
           },
         ]
       : isSocialMedia
@@ -1061,18 +1204,21 @@ function IntakeChecklistTable({
             name: "Imposter Profile URL",
             desc: "Target for mandatory 24-hr takedown (IT Rule 3(2)(b))",
             value: draft.imposterUrl || draft.suspectWebsite || null,
+            isMandatory: true,
           },
           {
             id: "gen",
             name: "Your Genuine Profile",
             desc: "Establishes identity verification for immediate removal",
             value: draft.genuineUrl || null,
+            isMandatory: false,
           },
           {
             id: "plat",
             name: "Platform",
             desc: "Intermediary jurisdiction under IT Act",
             value: draft.socialPlatform || null,
+            isMandatory: true,
           },
         ]
       : isWomenChildren
@@ -1082,18 +1228,21 @@ function IntakeChecklistTable({
             name: "Reporting Track",
             desc: "NCRP Women/Child track (waives KYC if anonymous)",
             value: draft.reportAnonymously ? "Anonymous (Track 1A)" : "Standard Report & Track (Track 1B)",
+            isMandatory: false,
           },
           {
             id: "threat",
             name: "Intimidation / Extortion",
             desc: "Criminal intimidation under BNS Sec 351/308",
             value: draft.threatenedContent || draft.extortionDemand || (draft.narrative ? "Recorded in narrative" : null),
+            isMandatory: true,
           },
           {
             id: "phone",
             name: "Suspect Contact / Handle",
             desc: "For Section 91/94 BNSS CDR telecom tracing",
             value: draft.suspectPhone || draft.suspectHandle || null,
+            isMandatory: true,
           },
         ]
       : [
@@ -1103,36 +1252,42 @@ function IntakeChecklistTable({
             name: "Reported Loss",
             desc: "Mandatory under BNSS 503 for FIR & fund restitution",
             value: draft.amount ? `₹${Number(draft.amount).toLocaleString("en-IN")}` : null,
+            isMandatory: true,
           },
           {
             id: "bank",
             name: "Your Bank / App",
             desc: "Needed for home bank dispute claim & chargeback",
             value: draft.bankName || null,
+            isMandatory: true,
           },
           {
             id: "debit",
             name: "Your Account / Mobile",
             desc: "Required for RBI account owner authentication",
             value: draft.bankAccount || null,
+            isMandatory: false,
           },
           {
             id: "utr",
             name: "12-Digit Transaction UTR",
             desc: "Critical for 1930 / CFCFRMS instant bank freeze",
             value: draft.utrNumber || null,
+            isMandatory: true,
           },
           {
             id: "acc",
             name: "Suspect Account / UPI",
             desc: "Required for Section 94 BNSS debit-freeze notice",
             value: draft.suspectAccount || null,
+            isMandatory: true,
           },
           {
             id: "mode",
             name: "Payment Mode",
             desc: "Identifies payment channel & reversal route",
             value: draft.paymentMode || null,
+            isMandatory: true,
           },
         ]),
     // Common fields across all categories
@@ -1141,45 +1296,52 @@ function IntakeChecklistTable({
       name: "Platform / Channel",
       desc: "Preserves digital forensics under BSA Section 63",
       value: draft.channel || null,
+      isMandatory: false,
     },
     {
       id: "date",
       name: "Incident Date / Time",
       desc: "Establishes statutory chronology & 120-min Golden Hour priority",
       value: draft.incidentDate || null,
+      isMandatory: true,
     },
   ];
 
   const countFilled = checklistItems.filter((i) => Boolean(i.value)).length;
   const countTotal = checklistItems.length;
+  const countMandatoryMissing = checklistItems.filter((i) => i.isMandatory && !i.value).length;
   const progressPercent = Math.round((countFilled / countTotal) * 100);
 
   if (!isExpanded) {
     return (
-      <div className="mt-2.5 rounded-lg border border-zinc-200 bg-zinc-50/90 px-3 py-2 flex items-center justify-between shadow-2xs font-sans not-prose">
-        <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="text-[11px] font-bold text-zinc-900">
-            Incident Details ({countFilled} of {countTotal} captured)
+      <div className="mt-2.5 rounded-lg border border-zinc-200 bg-zinc-50/90 px-3 py-2 flex items-center justify-between gap-2 shadow-2xs font-sans not-prose">
+        <button
+          type="button"
+          onClick={() => setIsExpanded(true)}
+          className="flex items-center gap-2 min-w-0 text-left flex-1"
+          aria-expanded={false}
+        >
+          <span className={`h-2 w-2 rounded-full shrink-0 ${
+            countMandatoryMissing > 0 ? "bg-amber-500 animate-pulse" : "bg-emerald-500 animate-pulse"
+          }`} />
+          <span className="text-[11px] font-bold text-zinc-900 truncate">
+            📋 {countFilled}/{countTotal} Fields Captured
           </span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => setIsExpanded(true)}
-            className="text-[11px] font-semibold text-brand-700 hover:text-brand-900 px-2 py-0.5 rounded hover:bg-brand-50 transition"
-          >
-            Review Details ▾
-          </button>
-          <button
-            type="button"
-            onClick={onTransfer}
-            className="inline-flex items-center gap-1 rounded bg-zinc-900 px-2 py-1 text-[10px] font-semibold text-white hover:bg-zinc-800 transition"
-          >
-            <span>Transfer</span>
-            <ArrowRight className="h-2.5 w-2.5" />
-          </button>
-        </div>
+          {countMandatoryMissing > 0 && (
+            <span className="text-[9.5px] font-bold text-red-600 bg-red-50 border border-red-200 rounded px-1.5 py-0.5 shrink-0 whitespace-nowrap">
+              {countMandatoryMissing} required left *
+            </span>
+          )}
+          <span className="text-[10px] text-brand-700 font-semibold shrink-0 ml-1">Review ▾</span>
+        </button>
+        <button
+          type="button"
+          onClick={onTransfer}
+          className="inline-flex items-center gap-1 rounded bg-zinc-900 px-2 py-1 text-[10px] font-semibold text-white hover:bg-zinc-800 transition shrink-0"
+        >
+          <span>Transfer</span>
+          <ArrowRight className="h-2.5 w-2.5" />
+        </button>
       </div>
     );
   }
@@ -1218,29 +1380,41 @@ function IntakeChecklistTable({
       <div className="divide-y divide-zinc-100 text-xs">
         {checklistItems.map((item) => {
           const isFilled = Boolean(item.value);
+          const isRequiredMissing = item.isMandatory && !isFilled;
           return (
             <div
               key={item.id}
               className={`flex items-center justify-between px-3.5 py-1.5 transition-colors ${
-                isFilled ? "bg-emerald-50/20" : "bg-white"
+                isFilled ? "bg-emerald-50/20" : isRequiredMissing ? "bg-red-50/30" : "bg-white"
               }`}
             >
               <div className="flex items-center gap-2 min-w-0 pr-3">
                 {isFilled ? (
                   <Check className="h-3.5 w-3.5 text-emerald-600 shrink-0 stroke-[2.5]" />
+                ) : isRequiredMissing ? (
+                  <span className="h-3.5 w-3.5 flex items-center justify-center text-red-400 shrink-0 text-xs font-bold select-none">
+                    *
+                  </span>
                 ) : (
                   <span className="h-3.5 w-3.5 flex items-center justify-center text-zinc-300 shrink-0 text-xs select-none">
                     ·
                   </span>
                 )}
                 <div className="flex flex-col min-w-0">
-                  <span
-                    className={`text-[11px] truncate ${
-                      isFilled ? "text-zinc-700 font-medium" : "text-zinc-500"
-                    }`}
-                  >
-                    {item.name}
-                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`text-[11px] truncate ${
+                        isFilled ? "text-zinc-700 font-medium" : isRequiredMissing ? "text-red-700 font-semibold" : "text-zinc-500"
+                      }`}
+                    >
+                      {item.name}
+                    </span>
+                    {isRequiredMissing && (
+                      <span className="text-[8.5px] font-bold text-red-600 bg-red-100 border border-red-200 rounded px-1 py-0.5 shrink-0 whitespace-nowrap leading-none">
+                        * Required
+                      </span>
+                    )}
+                  </div>
                   {!isFilled && (
                     <span className="text-[9.5px] text-zinc-400 truncate leading-tight">
                       {item.desc}
@@ -1255,8 +1429,10 @@ function IntakeChecklistTable({
                     {item.value}
                   </span>
                 ) : (
-                  <span className="text-[10px] text-zinc-400 italic">
-                    Pending
+                  <span className={`text-[10px] italic ${
+                    isRequiredMissing ? "text-red-400 font-semibold" : "text-zinc-400"
+                  }`}>
+                    {isRequiredMissing ? "Needed" : "Optional"}
                   </span>
                 )}
               </div>

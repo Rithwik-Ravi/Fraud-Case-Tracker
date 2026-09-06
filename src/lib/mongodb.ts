@@ -170,6 +170,7 @@ export interface ComplaintDoc {
     size: number;
     sha256: string;
     category?: string;
+    dataUrl?: string;
   }>;
 }
 

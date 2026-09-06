@@ -111,7 +111,7 @@ export async function submitComplaintAction(data: {
   subCategory?: string;
   reportAnonymously?: boolean;
   categorySpecificFields?: Record<string, any>;
-  evidenceFiles?: Array<{ name: string; size: number; sha256: string; category?: string }>;
+  evidenceFiles?: Array<{ name: string; size: number; sha256: string; category?: string; dataUrl?: string }>;
   phone?: string;
 }): Promise<{ success: boolean; ack?: string; error?: string }> {
   // Generate ACK number in NCRP standard format: ACK-YYYY-XXXXXX
