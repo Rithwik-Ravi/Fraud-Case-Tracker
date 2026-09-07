@@ -94,15 +94,19 @@ MANDATORY STATUTORY FIELDS (Required to file an actionable complaint):
 
 Behavior Guidelines:
 1. Speak with calm empathy and reassuring clarity.
-2. Structure your "reply" naturally and conversationally:
-   - Acknowledge what the citizen shared with warmth and confirm any key facts captured so far.
-   - MANDATORY FIELD PRIORITY: Inspect what mandatory fields (*) are still missing in the draft. Actively ask for the TOP 1 or 2 missing mandatory fields in your reply (e.g. asking for the 12-digit UTR, bank name, suspect UPI, or exact incident date/time). Explain gently why this specific information is required to file their formal complaint and freeze suspect channels.
-   - EVIDENCE SCREENSHOT PROMPT (CRITICAL): If the citizen has provided the core incident facts (or all mandatory fields like amount, bank, UTR, and suspect details are captured), you MUST actively ask if they have any evidence screenshots (such as UPI payment receipts, WhatsApp chat logs, or call screenshots). Instruct them to attach the screenshot using the paperclip (📎) icon or by pasting it directly with Ctrl+V. Explain that CasePilot will automatically calculate an immutable SHA-256 cryptographic hash under Section 63 of Bharatiya Sakshya Adhiniyam (BSA) to make it court-admissible evidence for the police and bank.
-   - Do NOT dump a long, bulleted checklist of all fields. Ask conversationally, keeping it brief and supportive (2-3 concise paragraphs maximum).
-3. Field Extraction: Extract all relevant fields into the draft according to the category.
-4. Output format: You MUST reply ONLY with a valid JSON object matching this schema:
+2. CRITICAL ANTI-HALLUCINATION RULES:
+   - Always extract all facts into the "draft" object FIRST.
+   - In your "reply", NEVER ask for any detail that has already been captured in "draft"!
+   - If draft.bankName is not null (e.g. "HDFC", "SBI", "ICICI"), DO NOT ask for the bank's name!
+   - If draft.amount is not null, DO NOT ask for the amount!
+   - If draft.utrNumber is not null, DO NOT ask for the UTR!
+   - If draft.suspectAccount or draft.suspectPhone is not null, DO NOT ask for suspect details!
+3. Structure your "reply" based on the "draft":
+   - If any mandatory statutory fields (*) are still missing in "draft", gently ask for the top missing field and explain why it is needed.
+   - If ALL mandatory statutory fields (*) are already captured in "draft", DO NOT ask for more information. Acknowledge the captured facts (amount, bank, UTR, suspect) and actively prompt for evidence screenshots:
+     "📎 Do you have any screenshots or evidence (such as payment receipts, WhatsApp chats, or call records)? You can attach them using the paperclip (📎) icon or paste directly (Ctrl + V). Under Section 63 of Bharatiya Sakshya Adhiniyam (BSA), CasePilot will automatically compute an immutable SHA-256 cryptographic hash to make them court-admissible evidence for the police and bank."
+4. Output format: You MUST reply ONLY with a valid JSON object matching this schema (note that draft comes FIRST):
 {
-  "reply": "Your empathetic response and conversational question for the missing mandatory detail...",
   "draft": {
     "narrative": "A cohesive 2-4 sentence summary of the incident based on what the victim shared.",
     "categoryId": "upi_fraud | net_banking | card_fraud | investment_scam | job_scam | loan_app_scam | sim_swap | child_safety | sextortion | cyber_blackmail | cyber_stalking | wc_defamation | impersonation | account_takeover | hack_defacement | hack_server_breach | malware_ransomware | crypto_wallet_drain | mob_malicious_apk | digital_arrest | other_cybercrime",
@@ -142,7 +146,8 @@ Behavior Guidelines:
     "extortionDemand": string | null,
     "reportAnonymously": boolean,
     "isReadyToReport": boolean
-  }
+  },
+  "reply": "Your empathetic response. Inspect the draft above: NEVER ask for any detail that has a value in draft! If mandatory fields are filled, confirm them and ask for screenshots/evidence."
 }`;
 
 export interface StatutoryFieldExplanation {
@@ -361,6 +366,18 @@ export async function POST(req: NextRequest) {
 
             if (draft) {
               const explanations = getStatutoryFieldExplanations(draft);
+
+              // Server-side Anti-Hallucination Guard:
+              // If bankName is already captured, but the model's text erroneously asks for the bank's name:
+              if (
+                draft.bankName &&
+                /\b(bank'?s?\s*name|confirm your bank|which bank|what bank|name of your bank)\b/i.test(replyText)
+              ) {
+                const amountText = draft.amount ? `₹${Number(draft.amount).toLocaleString("en-IN")}` : "";
+                replyText = `I have captured your incident details involving your **${draft.bankName}** account for ${amountText}${draft.utrNumber ? ` (UTR: ${draft.utrNumber})` : ""}.\n\n` +
+                  `📎 **Do you have any screenshots or evidence** (such as payment receipts, WhatsApp chats, or call records)?\n` +
+                  `You can attach them using the **paperclip icon (📎)** or paste directly with **Ctrl + V**. Under **Section 63 of Bharatiya Sakshya Adhiniyam (BSA)**, CasePilot will automatically compute an immutable SHA-256 cryptographic hash to make them legally admissible in court.`;
+              }
 
               // If everything is completely captured, ensure the reply actively prompts for evidence screenshots
               if (explanations.length === 0) {
