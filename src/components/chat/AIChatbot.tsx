@@ -24,6 +24,9 @@ import {
   MicOff,
   Square,
   Paperclip,
+  FileDown,
+  Globe,
+  ChevronDown,
 } from "lucide-react";
 import { useAssist } from "@/context/AssistContext";
 import { useLang } from "@/context/LanguageContext";
@@ -92,6 +95,10 @@ export interface ChatReportDraft {
   }>;
 }
 
+/**
+ * Client-side canvas compression for chatbot screenshot attachments.
+ * Ensures white background fill to prevent PNG transparency from turning black in JPEG.
+ */
 function compressImageToDataUrl(
   file: File,
   maxWidth = 1200,
@@ -129,6 +136,8 @@ function compressImageToDataUrl(
           resolve(e.target?.result as string);
           return;
         }
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
         resolve(canvas.toDataURL("image/jpeg", quality));
       };
@@ -166,39 +175,236 @@ export async function computeSha256(dataUrl: string): Promise<string> {
   }
 }
 
-const INITIAL_ADVISORY_MESSAGE: Message = {
-  id: "msg-welcome-advisory",
-  role: "assistant",
-  content:
-    "Welcome to CasePilot Citizen Cyber Advisory. How can I assist you with cyber incident guidance, banking freeze, or digital arrest questions right now?",
-  timestamp: "Just now",
+export interface ChatLanguageConfig {
+  code: string;
+  label: string;
+  nativeName: string;
+  badge: string;
+  speechLocale: string;
+  ttsLocale: string;
+  welcomeReporting: string;
+  welcomeAdvisory: string;
+  promptsReporting: string[];
+  promptsAdvisory: string[];
+}
+
+export const CHAT_LANGUAGES: Record<string, ChatLanguageConfig> = {
+  auto: {
+    code: "auto",
+    label: "Auto (Code-Switch)",
+    nativeName: "🌐 Auto",
+    badge: "Auto",
+    speechLocale: "en-IN",
+    ttsLocale: "en-IN",
+    welcomeReporting:
+      "Welcome to Guided Incident Intake. I will help you document your cyber incident step-by-step and explain each statutory detail needed for an immediate bank freeze and police FIR.\n\nTo begin, what happened in your own words? (You can type or speak in English, हिन्दी, Hinglish, বাংলা, தமிழ், etc. Switch languages anytime!).",
+    welcomeAdvisory:
+      "Welcome to CasePilot Citizen Cyber Advisory. How can I assist you with cyber incident guidance, banking freeze, or digital arrest questions right now? (You can ask in any language).",
+    promptsReporting: [
+      "Cheated of ₹25,000 on Google Pay / UPI",
+      "Telegram part-time task / work from home scam",
+      "Electricity bill SMS link with APK download",
+      "Fake investment / trading group on WhatsApp",
+    ],
+    promptsAdvisory: [
+      "Someone is claiming to be police on a video call right now",
+      "Money was debited from my account in the last hour",
+      "Someone is blackmailing me with private media",
+      "How does statutory case tracking work under BNSS?",
+    ],
+  },
+  en: {
+    code: "en",
+    label: "English",
+    nativeName: "English",
+    badge: "EN",
+    speechLocale: "en-IN",
+    ttsLocale: "en-IN",
+    welcomeReporting:
+      "Welcome to Guided Incident Intake. I will help you document your cyber incident step-by-step and explain each statutory detail needed for an immediate bank freeze and police FIR under Indian law.\n\nTo begin, what happened in your own words? (Feel free to type or tap the microphone to speak).",
+    welcomeAdvisory:
+      "Welcome to CasePilot Citizen Cyber Advisory. How can I assist you with cyber incident guidance, banking freeze, or digital arrest questions right now?",
+    promptsReporting: [
+      "Cheated of ₹25,000 on Google Pay / UPI",
+      "Telegram part-time task / work from home scam",
+      "Electricity bill SMS link with APK download",
+      "Fake investment / trading group on WhatsApp",
+    ],
+    promptsAdvisory: [
+      "Someone is claiming to be police on a video call right now",
+      "Money was debited from my account in the last hour",
+      "Someone is blackmailing me with private media",
+      "How does statutory case tracking work under BNSS?",
+    ],
+  },
+  hi: {
+    code: "hi",
+    label: "Hindi",
+    nativeName: "हिन्दी",
+    badge: "हिन्दी",
+    speechLocale: "hi-IN",
+    ttsLocale: "hi-IN",
+    welcomeReporting:
+      "केसपायलट साइबर अपराध सहायता में आपका स्वागत है। मैं आपकी शिकायत चरण-दर-चरण तैयार करने और बैंक खाता फ्रीज (1930) व पुलिस एफआईआर के लिए आवश्यक विवरण जुटाने में मदद करूँगा।\n\nशुरुआत करने के लिए, आपके साथ क्या धोखाधड़ी हुई? (आप बोलकर या लिखकर बता सकते हैं)।",
+    welcomeAdvisory:
+      "केसपायलट नागरिक साइबर परामर्श में आपका स्वागत है। डिजिटल अरेस्ट, बैंक खाता ब्लॉक, या किसी साइबर अपराध से संबंधित सलाह के लिए आप मुझसे पूछ सकते हैं।",
+    promptsReporting: [
+      "यूपीआई / गूगल पे पर ₹50,000 कट गए",
+      "टेलीग्राम पर पार्ट-टाइम जॉब के नाम पर धोखाधड़ी",
+      "बिजली बिल का फर्जी मैसेज और ऐप डाउनलोड",
+      "फर्जी पुलिस या सीबीआई वीडियो कॉल (डिजिटल अरेस्ट)",
+    ],
+    promptsAdvisory: [
+      "कोई खुद को पुलिस बताकर वीडियो कॉल पर अरेस्ट की धमकी दे रहा है",
+      "पिछले एक घंटे में खाते से पैसे कट गए, क्या करें?",
+      "कोई मेरी निजी फोटो से ब्लैकमेल कर रहा है",
+      "बीएनएसएस (BNSS) के तहत केस ट्रैकिंग कैसे काम करती है?",
+    ],
+  },
+  hinglish: {
+    code: "hinglish",
+    label: "Hinglish",
+    nativeName: "Hinglish",
+    badge: "Hinglish",
+    speechLocale: "en-IN",
+    ttsLocale: "en-IN",
+    welcomeReporting:
+      "CasePilot Cyber Assistance me aapka swagat hai. Main aapki complaint step-by-step prepare karne aur turant bank account freeze (1930) ke liye zaroori details capture karunga.\n\nShuru karne ke liye, aapke saath kya fraud hua? (Aap microphone se bol sakte hain ya type kar sakte hain).",
+    welcomeAdvisory:
+      "CasePilot Citizen Cyber Advisory me aapka swagat hai. Digital arrest, bank freeze, ya kisi cyber fraud par instant help ke liye poochhiye.",
+    promptsReporting: [
+      "UPI / GPay par ₹50,000 kat gaye",
+      "Telegram task job ke naam par scam ho gaya",
+      "Electricity bill SMS link par click kiya tha",
+      "Fake police / CBI video call digital arrest threat",
+    ],
+    promptsAdvisory: [
+      "Video call par police bol kar arrest dhamki de raha hai",
+      "Last 1 hour me account se paise kat gaye, freeze kaise karein?",
+      "Koi private photos se blackmail kar raha hai",
+      "BNSS Section 173(3) ke under case track kaise karein?",
+    ],
+  },
+  bn: {
+    code: "bn",
+    label: "Bengali",
+    nativeName: "বাংলা",
+    badge: "বাংলা",
+    speechLocale: "bn-IN",
+    ttsLocale: "bn-IN",
+    welcomeReporting:
+      "CasePilot সাইবার সহায়তা ডেস্কে আপনাকে স্বাগতম। আপনার সাইবার অভিযোগ নথিভুক্ত করতে এবং তাৎক্ষণিক ব্যাঙ্ক ফ্রিজ (1930) ও পুলিশ এফআইআরের জন্য প্রয়োজনীয় তথ্য সংগ্রহ করতে আমি সাহায্য করব।\n\nশুরু করতে, আপনার সাথে কী ঘটেছে নিজের ভাষায় বলুন বা লিখুন।",
+    welcomeAdvisory:
+      "CasePilot নাগরিক সাইবার পরামর্শে স্বাগতম। ডিজিটাল অ্যারেস্ট, ব্যাঙ্ক অ্যাকাউন্ট সংক্রান্ত সমস্যা বা সাইবার অপরাধ সম্পর্কে যেকোনো প্রশ্ন করুন।",
+    promptsReporting: [
+      "গুগল পে / ইউপিআই-তে ₹৫০,০০০ প্রতারণা হয়েছে",
+      "টেলিগ্রাম পার্ট-টাইম কাজের নামে টাকা নেওয়া হয়েছে",
+      "বিদ্যুৎ বিল বকেয়া এসএমএস ও ভুয়ো অ্যাপ",
+      "ভুয়ো পুলিশ ভিডিও কল এবং ডিজিটাল অ্যারেস্টের হুমকি",
+    ],
+    promptsAdvisory: [
+      "ভিডিও কলে কেউ নিজেকে पुलिस বলে হুমকি দিচ্ছে",
+      "গত এক ঘণ্টায় ব্যাঙ্ক থেকে টাকা কেটে গেছে, কী করব?",
+      "কেউ ব্যক্তিগত ছবি দিয়ে ব্ল্যাকমেল করছে",
+      "BNSS আইনের অধীনে অভিযোগ ট্র্যাক করবেন কীভাবে?",
+    ],
+  },
+  mr: {
+    code: "mr",
+    label: "Marathi",
+    nativeName: "मराठी",
+    badge: "मराठी",
+    speechLocale: "mr-IN",
+    ttsLocale: "mr-IN",
+    welcomeReporting:
+      "CasePilot सायबर सहाय्यामध्ये आपले स्वागत आहे. मी आपली तक्रार टप्प्याटप्प्याने नोंदवण्यात आणि बँक खाते फ्रीझ (1930) व पोलिस एफआयआरसाठी आवश्यक माहिती गोळा करण्यात मदत करेन.\n\nसुरुवात करण्यासाठी, आपल्यासोबत काय घडले ते बोलून किंवा लिहून सांगा.",
+    welcomeAdvisory:
+      "CasePilot नागरिक सायबर सल्लागार कक्षामध्ये आपले स्वागत आहे. डिजिटल अरेस्ट किंवा सायबर गुन्ह्याबाबत त्वरित मार्गदर्शन मिळवा.",
+    promptsReporting: [
+      "UPI / Google Pay वरून ₹५०,००० ची फसवणूक झाली",
+      "टेलिग्राम पार्ट-टाईम जॉबच्या नावाखाली पैसे उकळले",
+      "लाईट बिल थकबाकी मेसेज आणि बनावट ॲप",
+      "बनावट पोलिस किंवा सीबीआय व्हिडिओ कॉल धमकी",
+    ],
+    promptsAdvisory: [
+      "व्हिडिओ कॉलवर पोलिस अधिकारी असल्याचा दावा करून अटक करण्याची धमकी दिली जात आहे",
+      "गेल्या तासाभरात खात्यातून पैसे कट झाले, काय करावे?",
+      "कोणीतरी वैयक्तिक फोटोंवरून ब्लॅकमेल करत आहे",
+      "BNSS अंतर्गत तक्रार कशी ट्रॅक करावी?",
+    ],
+  },
+  ta: {
+    code: "ta",
+    label: "Tamil",
+    nativeName: "தமிழ்",
+    badge: "தமிழ்",
+    speechLocale: "ta-IN",
+    ttsLocale: "ta-IN",
+    welcomeReporting:
+      "CasePilot சைபர் உதவி மையத்திற்கு வருக. உங்கள் சைபர் புகாரைப் பதிவு செய்யவும், உடனடி வங்கி முடக்கம் (1930) மற்றும் காவல் துறை எஃப்.ஐ.ஆருக்கு தேவையான விவரங்களைச் சேகரிக்கவும் நான் உதவுவேன்.\n\nதொடங்குவதற்கு, உங்களுக்கு என்ன நடந்தது என்பதைப் பேசுங்கள் அல்லது தட்டச்சு செய்யுங்கள்.",
+    welcomeAdvisory:
+      "CasePilot குடிமக்கள் சைபர் ஆலோசனை மையத்திற்கு வருக. டிஜிட்டல் கைது, வங்கி கணக்கு முடக்கம் அல்லது சைபர் குற்றங்கள் குறித்த வழிகாட்டுதலைப் பெறுங்கள்.",
+    promptsReporting: [
+      "Google Pay / UPI மூலம் ₹50,000 மோசடி செய்யப்பட்டது",
+      "டெலிகிராம் பகுதி நேர வேலை மோசடி",
+      "மின் கட்டண போலி எஸ்எம்எஸ் மற்றும் ஆப் பதிவிறக்கம்",
+      "போலி போலீஸ் வீடியோ அழைப்பு மிரட்டல் (டிஜிட்டல் கைது)",
+    ],
+    promptsAdvisory: [
+      "வீடியோ காலில் போலீஸ் அதிகாரி எனக்கூறி கைது மிரட்டல் விடுக்கிறார்கள்",
+      "கடந்த 1 மணி நேரத்தில் கணக்கிலிருந்து பணம் எடுக்கப்பட்டது, என்ன செய்வது?",
+      "தனிப்பட்ட புகைப்படங்களை வைத்து மிரட்டுகிறார்கள்",
+      "BNSS சட்டத்தின் கீழ் வழக்கை எவ்வாறு கண்காணிப்பது?",
+    ],
+  },
+  te: {
+    code: "te",
+    label: "Telugu",
+    nativeName: "తెలుగు",
+    badge: "తెలుగు",
+    speechLocale: "te-IN",
+    ttsLocale: "te-IN",
+    welcomeReporting:
+      "CasePilot సైబర్ సహాయ కేంద్రానికి స్వాగతం. మీ సైబర్ ఫిర్యాదును నమోదు చేయడంలో మరియు తక్షణ బ్యాంక్ ఫ్రీజ్ (1930), పోలీసు ఎఫ్ఐఆర్ కోసం అవసరమైన వివరాలను సేకరించడంలో నేను మీకు సహాయం చేస్తాను.\n\nప్రారంభించడానికి, మీతో ఏమి జరిగిందో మాట్లాడండి లేదా టైప్ చేయండి.",
+    welcomeAdvisory:
+      "CasePilot పౌర సైబర్ సలహా కేంద్రానికి స్వాగతం. డిజిటల్ అరెస్ట్, బ్యాంక్ ఫ్రీజ్ లేదా సైబర్ మోసాలపై తక్షణ మార్గదర్శకత్వం పొందండి.",
+    promptsReporting: [
+      "UPI / Google Pay లో ₹50,000 మోసం జరిగింది",
+      "టెలిగ్రామ్ పార్ట్ టైమ్ జాబ్ స్కామ్",
+      "కరెంట్ బిల్లు నకిలీ ఎస్ఎంఎస్ మరియు యాప్ డౌన్‌లోడ్",
+      "నకిలీ పోలీసు వీడియో కాల్ బెదిరింపు (డిజిటల్ అరెస్ట్)",
+    ],
+    promptsAdvisory: [
+      "వీడియో కాల్‌లో పోలీసు అధికారి అని బెదిరింపులు వస్తున్నాయి",
+      "గత గంటలో ఖాతా నుండి డబ్బు కట్ అయ్యింది, ఏం చేయాలి?",
+      "వ్యక్తిగత ఫోటోలతో బ్లాక్‌మెయిల్ చేస్తున్నారు",
+      "BNSS చట్టం కింద కేస్ ట్రాకింగ్ ఎలా పనిచేస్తుంది?",
+    ],
+  },
 };
 
-const INITIAL_REPORTING_MESSAGE: Message = {
-  id: "msg-welcome-reporting",
-  role: "assistant",
-  content:
-    "Welcome to Guided Incident Intake. I will help you document your cyber incident step-by-step and explain each statutory detail needed for an immediate bank freeze and police FIR under Indian law.\n\nTo begin, what happened in your own words? (Feel free to type or tap the microphone to speak).",
-  timestamp: "Just now",
-};
-
-const ADVISORY_PROMPTS = [
-  "Someone is claiming to be police on a video call right now",
-  "Money was debited from my account in the last hour",
-  "Someone is blackmailing me with private media",
-  "How does statutory case tracking work under BNSS?",
-];
-
-const REPORTING_PROMPTS = [
-  "Cheated of ₹25,000 on Google Pay / UPI",
-  "Telegram part-time task / work from home scam",
-  "Electricity bill SMS link with APK download",
-  "Fake investment / trading group on WhatsApp",
-];
+function getSpeechLocaleName(locale: string): string {
+  switch (locale) {
+    case "hi-IN": return "हिन्दी (Hindi)";
+    case "bn-IN": return "বাংলা (Bengali)";
+    case "mr-IN": return "मराठी (Marathi)";
+    case "ta-IN": return "தமிழ் (Tamil)";
+    case "te-IN": return "తెలుగు (Telugu)";
+    case "en-IN":
+    default: return "English / Hinglish";
+  }
+}
 
 export default function AIChatbot() {
   const router = useRouter();
   const { t, lang } = useLang();
+
+  // Multilingual state (defaults to app language if supported, else "auto" code-switching)
+  const [chatLang, setChatLang] = useState<string>(
+    lang in CHAT_LANGUAGES ? lang : "auto"
+  );
+  const [langMenuOpen, setLangMenuOpen] = useState(false);
+  const activeLangConfig = CHAT_LANGUAGES[chatLang] || CHAT_LANGUAGES["auto"];
 
   // Chat window state: closed by default with floating robot icon and initial welcoming speech bubble
   const [isOpen, setIsOpen] = useState(false);
@@ -208,8 +414,22 @@ export default function AIChatbot() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const [advisoryMessages, setAdvisoryMessages] = useState<Message[]>([INITIAL_ADVISORY_MESSAGE]);
-  const [reportingMessages, setReportingMessages] = useState<Message[]>([INITIAL_REPORTING_MESSAGE]);
+  const [advisoryMessages, setAdvisoryMessages] = useState<Message[]>([
+    {
+      id: "msg-welcome-advisory",
+      role: "assistant",
+      content: activeLangConfig.welcomeAdvisory,
+      timestamp: "Just now",
+    },
+  ]);
+  const [reportingMessages, setReportingMessages] = useState<Message[]>([
+    {
+      id: "msg-welcome-reporting",
+      role: "assistant",
+      content: activeLangConfig.welcomeReporting,
+      timestamp: "Just now",
+    },
+  ]);
   const [reportDraft, setReportDraft] = useState<ChatReportDraft | null>(null);
 
   const [engineStatus, setEngineStatus] = useState<"ready" | "openai" | "offline">("ready");
@@ -274,19 +494,91 @@ export default function AIChatbot() {
 
   // ── Speech Recognition (Voice to Text) ─────────────────────────────────────
   const [isListening, setIsListening] = useState(false);
-  const [speechLang, setSpeechLang] = useState<"hi-IN" | "en-IN">(lang === "hi" ? "hi-IN" : "en-IN");
+  const [speechLang, setSpeechLang] = useState<string>(activeLangConfig.speechLocale || "en-IN");
   const recognitionRef = useRef<any>(null);
+  const speechBaseTextRef = useRef("");
+  const speechLangRef = useRef(speechLang);
+  const pendingRestartLangRef = useRef<string | null>(null);
+  const inputRef = useRef(input);
 
-  // Sync speech input language with site language
   useEffect(() => {
-    if (lang === "hi") {
-      setSpeechLang("hi-IN");
-    } else {
-      setSpeechLang("en-IN");
-    }
-  }, [lang]);
+    speechLangRef.current = speechLang;
+  }, [speechLang]);
 
-  // Initialize browser speech recognition
+  useEffect(() => {
+    inputRef.current = input;
+  }, [input]);
+
+  // Switch chat language across text prompts, welcome message, STT & TTS
+  const changeChatLang = (newCode: string) => {
+    setChatLang(newCode);
+    setLangMenuOpen(false);
+    const cfg = CHAT_LANGUAGES[newCode] || CHAT_LANGUAGES["auto"];
+    switchSpeechLang(cfg.speechLocale);
+
+    // If chat only contains the initial assistant welcome message, refresh it with native language
+    setReportingMessages((prev) => {
+      if (prev.length <= 1 && prev[0]?.id.startsWith("msg-welcome")) {
+        return [
+          {
+            ...prev[0],
+            content: cfg.welcomeReporting,
+          },
+        ];
+      }
+      return prev;
+    });
+
+    setAdvisoryMessages((prev) => {
+      if (prev.length <= 1 && prev[0]?.id.startsWith("msg-welcome")) {
+        return [
+          {
+            ...prev[0],
+            content: cfg.welcomeAdvisory,
+          },
+        ];
+      }
+      return prev;
+    });
+  };
+
+  // Switch speech recognition language dynamically (supports hot-switching mid-sentence!)
+  const switchSpeechLang = (newLocale: string) => {
+    setSpeechLang(newLocale);
+    speechLangRef.current = newLocale;
+
+    if (recognitionRef.current) {
+      if (isListening) {
+        // Preserve current text so switching languages appends smoothly!
+        speechBaseTextRef.current = inputRef.current;
+        pendingRestartLangRef.current = newLocale;
+        try {
+          recognitionRef.current.stop();
+        } catch {
+          try {
+            recognitionRef.current.lang = newLocale;
+            recognitionRef.current.start();
+          } catch {}
+        }
+      } else {
+        recognitionRef.current.lang = newLocale;
+      }
+    }
+  };
+
+  // Sync speech input language with activeLangConfig
+  useEffect(() => {
+    if (chatLang in CHAT_LANGUAGES) {
+      const targetLocale = CHAT_LANGUAGES[chatLang].speechLocale;
+      setSpeechLang(targetLocale);
+      speechLangRef.current = targetLocale;
+      if (recognitionRef.current && !isListening) {
+        recognitionRef.current.lang = targetLocale;
+      }
+    }
+  }, [chatLang, isListening]);
+
+  // Initialize browser speech recognition once on mount
   useEffect(() => {
     if (typeof window !== "undefined") {
       const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -294,35 +586,58 @@ export default function AIChatbot() {
         const rec = new SpeechRec();
         rec.continuous = true;
         rec.interimResults = true;
-        rec.lang = speechLang;
+        rec.lang = speechLangRef.current || "en-IN";
 
         rec.onstart = () => {
           setIsListening(true);
         };
 
         rec.onresult = (event: any) => {
-          let currentTranscript = "";
+          let currentSessionText = "";
           for (let i = 0; i < event.results.length; i++) {
-            currentTranscript += event.results[i][0].transcript;
+            currentSessionText += event.results[i][0].transcript;
           }
-          if (currentTranscript.trim()) {
-            setInput(currentTranscript);
+          const base = speechBaseTextRef.current ? speechBaseTextRef.current.trim() : "";
+          const combined = base ? `${base} ${currentSessionText.trim()}` : currentSessionText.trim();
+          if (combined) {
+            setInput(combined);
           }
         };
 
         rec.onerror = (e: any) => {
           console.warn("[SpeechRecognition] error:", e.error);
-          setIsListening(false);
+          if (e.error !== "no-speech") {
+            setIsListening(false);
+          }
         };
 
         rec.onend = () => {
+          if (pendingRestartLangRef.current) {
+            const nextLang = pendingRestartLangRef.current;
+            pendingRestartLangRef.current = null;
+            try {
+              rec.lang = nextLang;
+              rec.start();
+              setIsListening(true);
+              return;
+            } catch (err) {
+              console.warn("[SpeechRecognition] failed restarting in new language:", err);
+            }
+          }
           setIsListening(false);
         };
 
         recognitionRef.current = rec;
       }
     }
-  }, [speechLang]);
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch {}
+      }
+    };
+  }, []);
 
   const toggleListening = () => {
     if (!recognitionRef.current) {
@@ -331,12 +646,14 @@ export default function AIChatbot() {
     }
 
     if (isListening) {
+      pendingRestartLangRef.current = null;
       stopListening();
     } else {
       try {
         SpeechController.stop();
         setPlayingMsgId(null);
-        recognitionRef.current.lang = speechLang;
+        speechBaseTextRef.current = input;
+        recognitionRef.current.lang = speechLangRef.current || "en-IN";
         recognitionRef.current.start();
       } catch (err) {
         console.warn("[SpeechRecognition] start error:", err);
@@ -346,6 +663,7 @@ export default function AIChatbot() {
 
   const stopListening = () => {
     if (recognitionRef.current && isListening) {
+      pendingRestartLangRef.current = null;
       try {
         recognitionRef.current.stop();
       } catch {}
@@ -370,8 +688,10 @@ export default function AIChatbot() {
         const messages = chatMode === "advisory" ? advisoryMessages : reportingMessages;
         const latestBot = [...messages].reverse().find((m) => m.role === "assistant");
         if (latestBot) {
+          const targetTtsLocale = chatLang === "auto" ? undefined : activeLangConfig.ttsLocale;
           SpeechController.speak(latestBot.content, {
             id: latestBot.id,
+            locale: targetTtsLocale,
             onStart: () => setPlayingMsgId(latestBot.id),
             onEnd: () => setPlayingMsgId((curr) => (curr === latestBot.id ? null : curr)),
           });
@@ -386,8 +706,10 @@ export default function AIChatbot() {
       SpeechController.stop();
       setPlayingMsgId(null);
     } else {
+      const targetTtsLocale = chatLang === "auto" ? undefined : activeLangConfig.ttsLocale;
       SpeechController.speak(text, {
         id,
+        locale: targetTtsLocale,
         onStart: () => setPlayingMsgId(id),
         onEnd: () => setPlayingMsgId((curr) => (curr === id ? null : curr)),
       });
@@ -395,7 +717,10 @@ export default function AIChatbot() {
   };
 
   const currentMessages = chatMode === "advisory" ? advisoryMessages : reportingMessages;
-  const currentPrompts = chatMode === "advisory" ? ADVISORY_PROMPTS : REPORTING_PROMPTS;
+  const currentPrompts =
+    chatMode === "advisory"
+      ? activeLangConfig.promptsAdvisory
+      : activeLangConfig.promptsReporting;
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -467,6 +792,7 @@ export default function AIChatbot() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           mode: chatMode,
+          language: chatLang,
           messages: [...history, { role: "user", content: queryForApi }],
         }),
       });
@@ -497,8 +823,10 @@ export default function AIChatbot() {
 
       // IMMEDIATELY start speaking the moment AI sends text if overall speaker is on
       if ((voiceAssistanceRef.current || assist) && replyContent) {
+        const targetTtsLocale = chatLang === "auto" ? undefined : activeLangConfig.ttsLocale;
         SpeechController.speak(replyContent, {
           id: botMessage.id,
+          locale: targetTtsLocale,
           onStart: () => setPlayingMsgId(botMessage.id),
           onEnd: () => setPlayingMsgId((curr) => (curr === botMessage.id ? null : curr)),
         });
@@ -540,9 +868,14 @@ export default function AIChatbot() {
         setReportDraft(updatedDraft);
         botMessage.draft = updatedDraft;
 
-        // Auto-sync into sessionStorage & broadcast live custom event so open report page populates in real time
+        // Auto-sync into sessionStorage & window backup, broadcast live custom event
         if (typeof window !== "undefined") {
-          sessionStorage.setItem("casepilot_chatbot_draft", JSON.stringify(updatedDraft));
+          try {
+            sessionStorage.setItem("casepilot_chatbot_draft", JSON.stringify(updatedDraft));
+          } catch (e) {
+            console.warn("sessionStorage quota reached, keeping in-memory:", e);
+          }
+          (window as any).__casepilot_draft = updatedDraft;
           window.dispatchEvent(
             new CustomEvent("casepilot:apply-draft", { detail: updatedDraft })
           );
@@ -565,7 +898,10 @@ export default function AIChatbot() {
         };
         setReportDraft(updatedDraft);
         if (typeof window !== "undefined") {
-          sessionStorage.setItem("casepilot_chatbot_draft", JSON.stringify(updatedDraft));
+          try {
+            sessionStorage.setItem("casepilot_chatbot_draft", JSON.stringify(updatedDraft));
+          } catch {}
+          (window as any).__casepilot_draft = updatedDraft;
           window.dispatchEvent(
             new CustomEvent("casepilot:apply-draft", { detail: updatedDraft })
           );
@@ -581,8 +917,10 @@ export default function AIChatbot() {
       };
 
       if ((voiceAssistanceRef.current || assist) && errorMessage.content) {
+        const targetTtsLocale = chatLang === "auto" ? undefined : activeLangConfig.ttsLocale;
         SpeechController.speak(errorMessage.content, {
           id: errorMessage.id,
+          locale: targetTtsLocale,
           onStart: () => setPlayingMsgId(errorMessage.id),
           onEnd: () => setPlayingMsgId((curr) => (curr === errorMessage.id ? null : curr)),
         });
@@ -600,22 +938,65 @@ export default function AIChatbot() {
 
   const clearChat = () => {
     if (chatMode === "advisory") {
-      setAdvisoryMessages([INITIAL_ADVISORY_MESSAGE]);
+      setAdvisoryMessages([
+        {
+          id: "msg-welcome-advisory",
+          role: "assistant",
+          content: activeLangConfig.welcomeAdvisory,
+          timestamp: "Just now",
+        },
+      ]);
     } else {
-      setReportingMessages([INITIAL_REPORTING_MESSAGE]);
+      setReportingMessages([
+        {
+          id: "msg-welcome-reporting",
+          role: "assistant",
+          content: activeLangConfig.welcomeReporting,
+          timestamp: "Just now",
+        },
+      ]);
       setReportDraft(null);
     }
   };
 
   const [transferredSuccess, setTransferredSuccess] = useState(false);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
 
   const handleTransferToReport = () => {
-    if (reportDraft) {
-      sessionStorage.setItem("casepilot_chatbot_draft", JSON.stringify(reportDraft));
-      // Dispatch live custom event for any open report page to instantly populate
+    let effectiveDraft = reportDraft;
+    // Commit pending screenshot attachment if user hasn't sent it yet
+    if (pendingAttachment) {
+      const prior = effectiveDraft?.evidenceFiles || [];
+      const existingHashes = new Set(prior.map((e) => e.sha256));
+      const merged = [...prior];
+      if (!existingHashes.has(pendingAttachment.sha256)) {
+        merged.push({
+          name: pendingAttachment.name,
+          size: pendingAttachment.size || Math.round((pendingAttachment.dataUrl.length * 3) / 4),
+          sha256: pendingAttachment.sha256,
+          category: pendingAttachment.category || "Chat Screenshot",
+          dataUrl: pendingAttachment.dataUrl,
+        });
+      }
+      effectiveDraft = {
+        ...(effectiveDraft || {}),
+        narrative: effectiveDraft?.narrative || input || "Incident reported via CasePilot AI assistant.",
+        evidenceFiles: merged,
+      };
+      setReportDraft(effectiveDraft);
+      setPendingAttachment(null);
+    }
+
+    if (effectiveDraft) {
+      try {
+        sessionStorage.setItem("casepilot_chatbot_draft", JSON.stringify(effectiveDraft));
+      } catch (err) {
+        console.warn("sessionStorage quota exceeded, keeping in-memory:", err);
+      }
       if (typeof window !== "undefined") {
+        (window as any).__casepilot_draft = effectiveDraft;
         window.dispatchEvent(
-          new CustomEvent("casepilot:apply-draft", { detail: reportDraft })
+          new CustomEvent("casepilot:apply-draft", { detail: effectiveDraft })
         );
       }
     }
@@ -627,6 +1008,52 @@ export default function AIChatbot() {
       window.scrollTo({ top: 180, behavior: "smooth" });
     } else {
       router.push("/report?source=chatbot");
+    }
+  };
+
+  const handleDownloadChatDossierPdf = async () => {
+    setDownloadingPdf(true);
+    try {
+      const { generateCasePilotDossierPdf } = await import("@/lib/pdf-generator");
+      let activeDraft = reportDraft;
+      if (typeof window !== "undefined" && !activeDraft) {
+        activeDraft = (window as any).__casepilot_draft || null;
+      }
+      let exhibits = activeDraft?.evidenceFiles ? [...activeDraft.evidenceFiles] : [];
+      if (pendingAttachment && !exhibits.some((e: any) => e.sha256 === pendingAttachment.sha256)) {
+        exhibits.push({
+          name: pendingAttachment.name,
+          size: pendingAttachment.size || 50000,
+          sha256: pendingAttachment.sha256,
+          category: pendingAttachment.category || "Chat Screenshot",
+          dataUrl: pendingAttachment.dataUrl,
+        });
+      }
+
+      await generateCasePilotDossierPdf({
+        ackNumber: `CHAT-${Date.now().toString().slice(-6)}`,
+        amount: activeDraft?.amount,
+        incidentDate: activeDraft?.incidentDate || "Today",
+        platformChannel: activeDraft?.channel || "Chat Intake",
+        suspectName: activeDraft?.suspectName,
+        suspectPhone: activeDraft?.suspectPhone,
+        suspectAccount: activeDraft?.suspectAccount,
+        suspectHandle: activeDraft?.suspectHandle,
+        suspectWebsite: activeDraft?.suspectWebsite,
+        cryptoNetwork: activeDraft?.cryptoNetwork,
+        victimWallet: activeDraft?.victimWallet,
+        suspectWallet: activeDraft?.suspectWallet,
+        transactionHash: activeDraft?.transactionHash,
+        targetDomain: activeDraft?.targetDomain,
+        imposterUrl: activeDraft?.imposterUrl,
+        genuineUrl: activeDraft?.genuineUrl,
+        socialPlatform: activeDraft?.socialPlatform,
+        evidenceFiles: exhibits,
+      });
+    } catch (err) {
+      console.error("PDF generation from chat failed:", err);
+    } finally {
+      setDownloadingPdf(false);
     }
   };
 
@@ -864,6 +1291,32 @@ export default function AIChatbot() {
                 </button>
               </div>
 
+              {/* Multilingual Language Switcher Bar */}
+              <div className="flex items-center gap-1.5 overflow-x-auto px-3 py-1.5 bg-ink-100/80 border-b border-ink-200 scrollbar-none text-[11px] select-none">
+                <span className="text-ink-500 font-bold flex items-center gap-1 shrink-0 mr-0.5 text-[10px] uppercase tracking-wider">
+                  <Globe className="h-3 w-3 text-brand-600" />
+                  <span>Lang:</span>
+                </span>
+                {Object.values(CHAT_LANGUAGES).map((l) => {
+                  const isActive = chatLang === l.code;
+                  return (
+                    <button
+                      key={l.code}
+                      type="button"
+                      onClick={() => changeChatLang(l.code)}
+                      className={`px-2 py-0.5 rounded-full font-bold transition shrink-0 text-[10px] flex items-center gap-1 ${
+                        isActive
+                          ? "bg-brand-600 text-white shadow-xs"
+                          : "bg-white text-ink-700 hover:bg-ink-200 border border-ink-300"
+                      }`}
+                      title={`Switch to ${l.label} (Voice & Text)`}
+                    >
+                      <span>{l.nativeName}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
               {/* Emergency Banner */}
               {chatMode === "advisory" && (
                 <div className="bg-danger-50 border-b border-danger-200 px-3.5 py-2 flex items-center justify-between gap-2 text-danger-900">
@@ -918,6 +1371,8 @@ export default function AIChatbot() {
                             draft={msg.draft}
                             onTransfer={handleTransferToReport}
                             transferredSuccess={transferredSuccess}
+                            onDownloadPdf={handleDownloadChatDossierPdf}
+                            downloadingPdf={downloadingPdf}
                           />
                         )}
                       </div>
@@ -1015,20 +1470,47 @@ export default function AIChatbot() {
 
               {/* Voice-to-Text Listening Indicator */}
               {isListening && (
-                <div className="bg-red-50 border-t border-red-200 px-3 py-1.5 flex items-center justify-between text-xs text-red-700 animate-pulse select-none">
-                  <div className="flex items-center gap-2">
-                    <span className="h-2 w-2 rounded-full bg-red-600 animate-ping" />
-                    <span className="font-semibold text-[11px]">
-                      Listening in {speechLang === "hi-IN" ? "हिन्दी / Hinglish" : "English"}... Speak clearly
-                    </span>
+                <div className="bg-red-50 border-t border-red-200 px-3 py-2 flex flex-col gap-1.5 text-xs text-red-700 animate-in fade-in select-none">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2.5 w-2.5 rounded-full bg-red-600 animate-ping shrink-0" />
+                      <span className="font-semibold text-[11px] truncate">
+                        Microphone Active: <strong className="text-red-950 font-bold bg-white/90 px-1.5 py-0.5 rounded border border-red-200">{getSpeechLocaleName(speechLang)}</strong>
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={stopListening}
+                      className="text-[10px] font-bold text-white bg-red-800 hover:bg-red-900 px-2.5 py-0.5 rounded shadow-2xs shrink-0 transition"
+                    >
+                      Done Listening ✓
+                    </button>
                   </div>
-                  <button
-                    type="button"
-                    onClick={stopListening}
-                    className="text-[10px] font-bold text-red-800 bg-red-100 hover:bg-red-200 px-2 py-0.5 rounded transition"
-                  >
-                    Done Speaking
-                  </button>
+                  <div className="flex items-center gap-1 overflow-x-auto pb-0.5 scrollbar-none">
+                    <span className="text-[10px] text-red-700 font-bold shrink-0">Speak in:</span>
+                    {[
+                      { code: "en-IN", label: "EN / Hinglish" },
+                      { code: "te-IN", label: "తెలుగు (Telugu)" },
+                      { code: "hi-IN", label: "हिन्दी (Hindi)" },
+                      { code: "bn-IN", label: "বাংলা (Bengali)" },
+                      { code: "mr-IN", label: "मराठी (Marathi)" },
+                      { code: "ta-IN", label: "தமிழ் (Tamil)" },
+                    ].map((btn) => (
+                      <button
+                        key={btn.code}
+                        type="button"
+                        onClick={() => switchSpeechLang(btn.code)}
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded transition shrink-0 ${
+                          speechLang === btn.code
+                            ? "bg-red-700 text-white shadow-xs ring-1 ring-red-400"
+                            : "bg-white text-red-900 hover:bg-red-100 border border-red-200"
+                        }`}
+                        title={`Switch microphone input to ${btn.label}`}
+                      >
+                        {btn.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -1075,15 +1557,44 @@ export default function AIChatbot() {
                   aria-label="Attach screenshot evidence"
                 />
 
-                {/* Speech Input Language Switcher */}
-                <button
-                  type="button"
-                  onClick={() => setSpeechLang((prev) => (prev === "hi-IN" ? "en-IN" : "hi-IN"))}
-                  title={`Speech input language: ${speechLang === "hi-IN" ? "Hindi / Hinglish" : "English"}`}
-                  className="h-[38px] rounded px-2 text-[10px] font-bold text-zinc-600 bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 shrink-0 transition flex items-center justify-center mb-[1px]"
-                >
-                  {speechLang === "hi-IN" ? "हिन्दी" : "EN"}
-                </button>
+                {/* Multi-language Dropdown Picker */}
+                <div className="relative shrink-0 mb-[1px]">
+                  <button
+                    type="button"
+                    onClick={() => setLangMenuOpen((prev) => !prev)}
+                    className="h-[38px] flex items-center gap-1 rounded-ux border border-ink-300 bg-ink-100 hover:bg-ink-200 px-2 text-[11px] font-bold text-ink-800 transition"
+                    title="Change chat and voice input language"
+                  >
+                    <Globe className="h-3.5 w-3.5 text-brand-600" />
+                    <span className="max-w-[56px] truncate">{activeLangConfig.badge}</span>
+                    <ChevronDown className="h-3 w-3 text-ink-500" />
+                  </button>
+
+                  {langMenuOpen && (
+                    <div className="absolute bottom-full left-0 mb-1 w-44 rounded-xl border-2 border-ink-900 bg-white p-1.5 shadow-2xl z-50 animate-in fade-in slide-in-from-bottom-2">
+                      <div className="text-[9px] font-extrabold text-ink-400 uppercase tracking-wider px-2 py-1">
+                        Select Language
+                      </div>
+                      <div className="max-h-48 overflow-y-auto space-y-0.5">
+                        {Object.values(CHAT_LANGUAGES).map((l) => (
+                          <button
+                            key={l.code}
+                            type="button"
+                            onClick={() => changeChatLang(l.code)}
+                            className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded text-xs font-semibold transition ${
+                              chatLang === l.code
+                                ? "bg-brand-50 text-brand-700 font-bold"
+                                : "text-ink-800 hover:bg-ink-100"
+                            }`}
+                          >
+                            <span>{l.nativeName}</span>
+                            <span className="text-[10px] text-ink-400 font-normal">{l.badge}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
 
                 {/* Attach Evidence Screenshot */}
                 <button
@@ -1184,8 +1695,8 @@ export default function AIChatbot() {
                     pendingAttachment
                       ? "Add a note about this screenshot (optional)..."
                       : isListening
-                      ? "Listening to your voice..."
-                      : (t("chat.inputPlaceholder") || "Describe what happened, or tap mic to speak...")
+                      ? `🎙️ Listening in ${getSpeechLocaleName(speechLang)}... (switch language anytime above)`
+                      : (t("chat.inputPlaceholder") || `Describe what happened (${activeLangConfig.badge}), or tap mic to speak...`)
                   }
                   disabled={loading}
                   className={`flex-1 min-h-[38px] max-h-[120px] resize-none overflow-y-auto rounded-ux border px-3 py-2 text-xs leading-relaxed text-ink-900 placeholder:text-ink-400 focus:outline-none transition ${
@@ -1280,10 +1791,14 @@ function IntakeChecklistTable({
   draft,
   onTransfer,
   transferredSuccess,
+  onDownloadPdf,
+  downloadingPdf,
 }: {
   draft: ChatReportDraft;
   onTransfer: () => void;
   transferredSuccess?: boolean;
+  onDownloadPdf?: () => void;
+  downloadingPdf?: boolean;
 }) {
   const catId = draft.categoryId || "";
   const isCrypto = catId.includes("crypto");
@@ -1536,14 +2051,28 @@ function IntakeChecklistTable({
           )}
           <span className="text-[10px] text-brand-700 font-semibold shrink-0 ml-1">Review ▾</span>
         </button>
-        <button
-          type="button"
-          onClick={onTransfer}
-          className="inline-flex items-center gap-1 rounded bg-zinc-900 px-2 py-1 text-[10px] font-semibold text-white hover:bg-zinc-800 transition shrink-0"
-        >
-          <span>Transfer</span>
-          <ArrowRight className="h-2.5 w-2.5" />
-        </button>
+        <div className="flex items-center gap-1 shrink-0">
+          {draft.evidenceFiles && draft.evidenceFiles.length > 0 && onDownloadPdf && (
+            <button
+              type="button"
+              onClick={onDownloadPdf}
+              disabled={downloadingPdf}
+              className="inline-flex items-center gap-1 rounded border border-brand-600 bg-white px-2 py-1 text-[10px] font-bold text-brand-700 hover:bg-brand-50 transition"
+              title="Download Section 63 BSA Certified PDF Dossier"
+            >
+              <FileDown className="h-3 w-3" />
+              <span>{downloadingPdf ? "..." : "PDF"}</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={onTransfer}
+            className="inline-flex items-center gap-1 rounded bg-zinc-900 px-2 py-1 text-[10px] font-semibold text-white hover:bg-zinc-800 transition shrink-0"
+          >
+            <span>Transfer</span>
+            <ArrowRight className="h-2.5 w-2.5" />
+          </button>
+        </div>
       </div>
     );
   }
@@ -1643,32 +2172,46 @@ function IntakeChecklistTable({
         })}
       </div>
 
-      {/* Clean Minimalist Transfer Action */}
-      <div className="px-3.5 py-2.5 bg-zinc-50/60 border-t border-zinc-200/70 flex items-center justify-between gap-3">
+      {/* Clean Minimalist Transfer & PDF Action */}
+      <div className="px-3.5 py-2.5 bg-zinc-50/60 border-t border-zinc-200/70 flex items-center justify-between gap-2">
         <span className="text-[10px] text-zinc-500 truncate">
           {countFilled >= 2 ? "Ready to auto-fill official report" : "Answer AI follow-ups above"}
         </span>
-        <button
-          type="button"
-          onClick={onTransfer}
-          className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold text-white transition shadow-2xs shrink-0 ${
-            transferredSuccess
-              ? "bg-emerald-600 hover:bg-emerald-700"
-              : "bg-zinc-900 hover:bg-zinc-800"
-          }`}
-        >
-          {transferredSuccess ? (
-            <>
-              <Check className="h-3.5 w-3.5 stroke-[2.5]" />
-              <span>Transferred to Form!</span>
-            </>
-          ) : (
-            <>
-              <span>Transfer to Form</span>
-              <ArrowRight className="h-3.5 w-3.5" />
-            </>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {draft.evidenceFiles && draft.evidenceFiles.length > 0 && onDownloadPdf && (
+            <button
+              type="button"
+              onClick={onDownloadPdf}
+              disabled={downloadingPdf}
+              className="inline-flex items-center gap-1 rounded-lg border border-brand-600 bg-white px-2.5 py-1.5 text-xs font-semibold text-brand-700 hover:bg-brand-50 transition shadow-2xs"
+              title="Download official court-admissible PDF complaint dossier with all Section 63 BSA evidence exhibits embedded"
+            >
+              <FileDown className="h-3.5 w-3.5" />
+              <span>{downloadingPdf ? "Generating..." : "Download Certified PDF"}</span>
+            </button>
           )}
-        </button>
+          <button
+            type="button"
+            onClick={onTransfer}
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-1.5 text-xs font-semibold text-white transition shadow-2xs ${
+              transferredSuccess
+                ? "bg-emerald-600 hover:bg-emerald-700"
+                : "bg-zinc-900 hover:bg-zinc-800"
+            }`}
+          >
+            {transferredSuccess ? (
+              <>
+                <Check className="h-3.5 w-3.5 stroke-[2.5]" />
+                <span>Transferred to Form!</span>
+              </>
+            ) : (
+              <>
+                <span>Transfer to Form</span>
+                <ArrowRight className="h-3.5 w-3.5" />
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

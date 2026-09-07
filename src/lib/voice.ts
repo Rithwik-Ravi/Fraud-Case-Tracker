@@ -9,7 +9,7 @@
  * 3. Humanized speech cleaning (acronym spelling, UTR spacing, currency, conversational transitions)
  */
 
-export function cleanTextForSpeech(raw: string): string {
+export function cleanTextForSpeech(raw: string, locale?: string): string {
   if (!raw) return "";
 
   let text = raw;
@@ -21,15 +21,45 @@ export function cleanTextForSpeech(raw: string): string {
   // 2. Format UTR numbers (e.g. 381920194829 -> 3 8 1 9 2 0 1 9 4 8 2 9) so they are read digit-by-digit
   text = text.replace(/\b(\d{12})\b/g, (match) => match.split("").join(" "));
 
-  // 3. Format currency (e.g. ₹35,000 -> 35,000 rupees)
-  text = text.replace(/₹\s*([\d,]+)/g, "$1 rupees");
+  // 3. Format currency by target language / script
+  const isBengali = locale?.startsWith("bn") || /[\u0980-\u09FF]/.test(text);
+  const isTamil = locale?.startsWith("ta") || /[\u0B80-\u0BFF]/.test(text);
+  const isTelugu = locale?.startsWith("te") || /[\u0C00-\u0C7F]/.test(text);
+  const isGujarati = locale?.startsWith("gu") || /[\u0A80-\u0AFF]/.test(text);
+  const isKannada = locale?.startsWith("kn") || /[\u0C80-\u0CFF]/.test(text);
+  const isDevanagari =
+    !isBengali &&
+    (locale?.startsWith("hi") ||
+      locale?.startsWith("mr") ||
+      /[\u0904-\u0939\u093D-\u094F\u0958-\u0963]/.test(text));
+
+  if (isBengali) {
+    text = text.replace(/₹\s*([\d,]+)/g, "$1 টাকা");
+  } else if (isTamil) {
+    text = text.replace(/₹\s*([\d,]+)/g, "$1 ரூபாய்");
+  } else if (isTelugu) {
+    text = text.replace(/₹\s*([\d,]+)/g, "$1 రూపాయలు");
+  } else if (isGujarati) {
+    text = text.replace(/₹\s*([\d,]+)/g, "$1 રૂપિયા");
+  } else if (isKannada) {
+    text = text.replace(/₹\s*([\d,]+)/g, "$1 ರೂಪಾಯಿಗಳು");
+  } else if (isDevanagari) {
+    text = text.replace(/₹\s*([\d,]+)/g, "$1 रुपये");
+  } else {
+    text = text.replace(/₹\s*([\d,]+)/g, "$1 rupees");
+  }
 
   // 4. Format UPI handles (e.g. fraud.node@axisbank -> fraud dot node at axis bank)
   text = text.replace(/([a-zA-Z0-9.\-_]+)@([a-zA-Z0-9.\-_]+)/g, "$1 at $2");
 
   // 5. Conversationalize statutory requirements with gentle pacing
-  text = text.replace(/^\s*\d+\.\s*\*\*([^*]+)\*\*:\s*/gm, "Next, for $1, ");
-  text = text.replace(/^\s*•\s*\*\*([^*]+)\*\*:\s*/gm, "Also, for $1, ");
+  if (!isDevanagari && !isBengali && !isTamil && !isTelugu) {
+    text = text.replace(/^\s*\d+\.\s*\*\*([^*]+)\*\*:\s*/gm, "Next, for $1, ");
+    text = text.replace(/^\s*•\s*\*\*([^*]+)\*\*:\s*/gm, "Also, for $1, ");
+  } else {
+    text = text.replace(/^\s*\d+\.\s*\*\*([^*]+)\*\*:\s*/gm, "$1: ");
+    text = text.replace(/^\s*•\s*\*\*([^*]+)\*\*:\s*/gm, "$1: ");
+  }
 
   // 6. Clean markdown symbols
   text = text
@@ -43,6 +73,7 @@ export function cleanTextForSpeech(raw: string): string {
   // 7. Spell out Indian cybersecurity & banking acronyms clearly
   text = text.replace(/\bFIR\b/g, "F I R");
   text = text.replace(/\bBNSS\b/g, "B N S S");
+  text = text.replace(/\bBSA\b/g, "B S A");
   text = text.replace(/\bNPCI\b/g, "N P C I");
   text = text.replace(/\bOTP\b/g, "O T P");
   text = text.replace(/\bAPK\b/g, "A P K");
@@ -56,17 +87,39 @@ export function cleanTextForSpeech(raw: string): string {
 }
 
 /**
- * Detects whether the text is predominantly Hindi / Devanagari script, Hinglish, or English.
+ * Detects whether the text is Hindi, Bengali, Tamil, Telugu, Marathi, Hinglish, or English.
  */
-export function detectLanguage(text: string): "hi-IN" | "en-IN" {
-  if (/[\u0900-\u097F]/.test(text)) {
-    return "hi-IN";
+export function detectLanguage(text: string): string {
+  if (!text) return "en-IN";
+
+  // Check Unicode script blocks for major Indian languages
+  // Check regional scripts first before Devanagari (since danda \u0964 is in Devanagari block but used in Bengali)
+  if (/[\u0980-\u09FF]/.test(text)) return "bn-IN"; // Bengali
+  if (/[\u0B80-\u0BFF]/.test(text)) return "ta-IN"; // Tamil
+  if (/[\u0C00-\u0C7F]/.test(text)) return "te-IN"; // Telugu
+  if (/[\u0C80-\u0CFF]/.test(text)) return "kn-IN"; // Kannada
+  if (/[\u0D00-\u0D7F]/.test(text)) return "ml-IN"; // Malayalam
+  if (/[\u0A80-\u0AFF]/.test(text)) return "gu-IN"; // Gujarati
+
+  if (/[\u0904-\u0939\u093D-\u094F\u0958-\u0963]/.test(text)) {
+    // Check for Marathi-specific words
+    if (/\b(?:आहे|आहेत|झाली|झाले|पैसे|तक्रार|बँक)\b/.test(text)) {
+      return "mr-IN";
+    }
+    return "hi-IN"; // Hindi / Devanagari
   }
+  if (/[\u0980-\u09FF]/.test(text)) return "bn-IN"; // Bengali
+  if (/[\u0B80-\u0BFF]/.test(text)) return "ta-IN"; // Tamil
+  if (/[\u0C00-\u0C7F]/.test(text)) return "te-IN"; // Telugu
+  if (/[\u0C80-\u0CFF]/.test(text)) return "kn-IN"; // Kannada
+  if (/[\u0D00-\u0D7F]/.test(text)) return "ml-IN"; // Malayalam
+  if (/[\u0A80-\u0AFF]/.test(text)) return "gu-IN"; // Gujarati
 
   const lower = text.toLowerCase();
   const hindiWords = [
     "kisi", "vyakti", "call", "kiya", "paisa", "rupaye", "chura", "liya", "mera", "meri",
-    "karo", "kijiye", "bheja", "aaya", "otp", "dhokha", "shikayat", "aaj", "kal", "hai", "hain"
+    "karo", "kijiye", "bheja", "aaya", "otp", "dhokha", "shikayat", "aaj", "kal", "hai", "hain",
+    "usne", "bola", "bhej", "diye", "kat", "gaye", "hazar", "dhamki", "madad"
   ];
   let hindiHits = 0;
   for (const w of hindiWords) {
@@ -80,32 +133,47 @@ export function detectLanguage(text: string): "hi-IN" | "en-IN" {
   return "en-IN";
 }
 
-// Voice preference priority list specifically targeting the gentle, warm "Grace" persona
-const GRACE_PERSONA_VOICES = [
-  "grace",
-  "jenny online (natural)",
-  "jenny",
-  "aria online (natural)",
-  "aria",
-  "neerja online (natural)",
-  "neerja",
-  "swara online (natural)",
-  "swara",
-  "google uk english female",
-  "google us english",
-  "google हिन्दी",
-  "samantha",
-  "victoria",
-  "karen",
-  "zira",
-];
+// Language-specific preferred natural voices across Edge, Chrome, Windows, Mac & Android
+export const LANGUAGE_PREFERRED_VOICES: Record<string, string[]> = {
+  hi: [
+    "swara online (natural)", "swara", "kalpana", "aarohi online (natural)", "aarohi",
+    "google हिन्दी", "hindi", "devanagari"
+  ],
+  mr: [
+    "aarohi online (natural)", "aarohi", "swara online (natural)", "swara",
+    "google मराठी", "marathi"
+  ],
+  bn: [
+    "tanishaa online (natural)", "tanishaa", "google বাংলা", "bengali", "bangla"
+  ],
+  ta: [
+    "pallavi online (natural)", "pallavi", "google தமிழ்", "tamil"
+  ],
+  te: [
+    "shruti online (natural)", "shruti", "google తెలుగు", "telugu"
+  ],
+  gu: [
+    "dhwani online (natural)", "dhwani", "google ગુજરાતી", "gujarati"
+  ],
+  kn: [
+    "sapna online (natural)", "sapna", "google ಕನ್ನಡ", "kannada"
+  ],
+  ml: [
+    "shobhana online (natural)", "shobhana", "google മലയാളം", "malayalam"
+  ],
+  en: [
+    "grace", "neerja online (natural)", "neerja", "jenny online (natural)", "jenny",
+    "aria online (natural)", "aria", "google uk english female", "google us english",
+    "samantha", "victoria", "karen", "zira"
+  ],
+};
 
 const MALE_DISQUALIFIERS = [
-  "david", "mark", "george", "guy", "prabhat", "ravi", "stefan", "male", "microsoft david"
+  "david", "mark", "george", "guy", "prabhat", "ravi", "stefan", "male", "microsoft david", "bashkar", "valluvar", "mohan", "manohar"
 ];
 
 /**
- * Selects the highest-fidelity natural neural voice available matching the Grace persona.
+ * Selects the highest-fidelity natural neural voice available matching the Grace persona for the target language.
  */
 export function findBestVoice(
   voices: SpeechSynthesisVoice[],
@@ -113,19 +181,25 @@ export function findBestVoice(
 ): SpeechSynthesisVoice | null {
   if (!voices || voices.length === 0) return null;
 
-  const langCode = targetLocale.toLowerCase().split("-")[0]; // e.g. "hi" or "en"
+  const langCode = targetLocale.toLowerCase().split("-")[0]; // e.g. "hi", "bn", "ta", "te", "mr", "en"
   const fullLocale = targetLocale.toLowerCase().replace("_", "-");
 
-  // Filter voices matching the language
-  const matching = voices.filter((v) => {
+  // 1. Filter voices strictly matching the language code or full locale
+  let matching = voices.filter((v) => {
     const vLang = v.lang.toLowerCase().replace("_", "-");
     return vLang === fullLocale || vLang.startsWith(langCode);
   });
 
+  // If Marathi is not installed, Hindi voice can articulate Devanagari phonemes effectively
+  if (matching.length === 0 && langCode === "mr") {
+    matching = voices.filter((v) => v.lang.toLowerCase().startsWith("hi"));
+  }
+
   const candidates = matching.length > 0 ? matching : voices;
 
-  // 1. Check for specific Grace or warm female neural voices
-  for (const preferred of GRACE_PERSONA_VOICES) {
+  // 2. Check preferred voices for this specific language first
+  const preferredList = LANGUAGE_PREFERRED_VOICES[langCode] || LANGUAGE_PREFERRED_VOICES.en;
+  for (const preferred of preferredList) {
     const match = candidates.find((v) => {
       const name = v.name.toLowerCase();
       return name.includes(preferred) && !MALE_DISQUALIFIERS.some((d) => name.includes(d));
@@ -133,7 +207,7 @@ export function findBestVoice(
     if (match) return match;
   }
 
-  // 2. Look for any natural/neural female voice
+  // 3. Look for any natural/neural female voice matching the language
   const anyNaturalFemale = candidates.find((v) => {
     const name = v.name.toLowerCase();
     const isNatural = name.includes("natural") || name.includes("neural") || name.includes("online");
@@ -142,7 +216,7 @@ export function findBestVoice(
   });
   if (anyNaturalFemale) return anyNaturalFemale;
 
-  // 3. Fallback to any non-male voice matching locale
+  // 4. Fallback to any non-male voice matching locale
   const nonMale = candidates.find((v) => {
     const name = v.name.toLowerCase();
     return !MALE_DISQUALIFIERS.some((d) => name.includes(d));
@@ -155,8 +229,8 @@ export function findBestVoice(
 /**
  * Splits text into conversational sentence chunks for fluid playback with human-like breathing intervals.
  */
-export function chunkSpeechSentences(text: string, maxLen = 170): string[] {
-  const clean = cleanTextForSpeech(text);
+export function chunkSpeechSentences(text: string, locale?: string, maxLen = 170): string[] {
+  const clean = cleanTextForSpeech(text, locale);
   if (!clean) return [];
 
   const sentences = clean.match(/[^.!?।\n]+[.!?।\n]*\s*/g) ?? [clean];
@@ -217,9 +291,9 @@ export class SpeechController {
   }
 
   /**
-   * Speaks text using the "Grace" persona.
+   * Speaks text using the "Grace" persona across English, Hindi, and Indian regional languages.
    * Checks ElevenLabs API first (/api/tts); if unavailable or unconfigured,
-   * uses local browser neural speech synthesis acoustically tuned for Grace.
+   * uses local browser neural speech synthesis acoustically tuned for Grace in the target language.
    */
   public static async speak(
     text: string,
@@ -234,7 +308,8 @@ export class SpeechController {
 
     this.stop();
 
-    const clean = cleanTextForSpeech(text);
+    const targetLocale = options?.locale || detectLanguage(text);
+    const clean = cleanTextForSpeech(text, targetLocale);
     if (!clean) return false;
 
     this.activeId = options?.id || `speech-${Date.now()}`;
@@ -248,7 +323,12 @@ export class SpeechController {
         const res = await fetch("/api/tts", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: clean, voiceId: "oWAx60SgOHbt37ZaSlIh" }),
+          body: JSON.stringify({
+            text: clean,
+            voiceId: "oWAx60SgOHbt37ZaSlIh",
+            locale: targetLocale,
+            language: targetLocale.split("-")[0],
+          }),
         });
 
         const contentType = res.headers.get("content-type") || "";
@@ -271,7 +351,7 @@ export class SpeechController {
             URL.revokeObjectURL(audioUrl);
             this.activeAudio = null;
             // Fallback to local Grace synthesis on audio error
-            this.speakWithBrowserGrace(clean, options);
+            this.speakWithBrowserGrace(clean, { ...options, locale: targetLocale });
           };
 
           await audio.play();
@@ -286,13 +366,13 @@ export class SpeechController {
     }
 
     // Seamless Grace persona local synthesis
-    return this.speakWithBrowserGrace(clean, options);
+    return this.speakWithBrowserGrace(clean, { ...options, locale: targetLocale });
   }
 
   /**
    * Browser Web Speech Synthesis tuned specifically to the Grace persona:
-   * - Pitch: 1.05 (Warm, soft feminine pitch)
-   * - Rate: 0.89 (Gentle, unhurried, reassuring cadence)
+   * - Pitch: 1.04 (Warm, soft feminine pitch)
+   * - Rate: 0.90 (Gentle, unhurried, reassuring cadence)
    */
   private static speakWithBrowserGrace(
     cleanedText: string,
@@ -314,7 +394,7 @@ export class SpeechController {
     const voices = synth.getVoices();
     const voice = findBestVoice(voices, targetLocale);
 
-    const chunks = chunkSpeechSentences(cleanedText);
+    const chunks = chunkSpeechSentences(cleanedText, targetLocale);
     if (chunks.length === 0) {
       this.activeId = null;
       if (options?.onEnd) options.onEnd();
@@ -338,15 +418,15 @@ export class SpeechController {
       if (voice) utterance.voice = voice;
 
       // Grace Persona Acoustic Modeling:
-      // Rate: 0.89 gives Grace's signature calm, empathetic, unhurried rhythm
-      // Pitch: 1.05 gives Grace's gentle, comforting, natural feminine pitch
-      utterance.rate = 0.89;
-      utterance.pitch = 1.05;
+      // Rate: 0.90 gives Grace's signature calm, empathetic, unhurried rhythm
+      // Pitch: 1.04 gives Grace's gentle, comforting, natural feminine pitch
+      utterance.rate = 0.90;
+      utterance.pitch = 1.04;
       utterance.volume = 1.0;
 
       utterance.onend = () => {
         // Subtle micro-pause between sentences to emulate human breathing
-        setTimeout(() => playNext(index + 1), 60);
+        setTimeout(() => playNext(index + 1), 70);
       };
 
       utterance.onerror = (e) => {

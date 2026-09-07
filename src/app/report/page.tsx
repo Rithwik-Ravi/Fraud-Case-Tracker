@@ -121,6 +121,8 @@ function compressImageToDataUrl(
           resolve(e.target?.result as string);
           return;
         }
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
         resolve(canvas.toDataURL("image/jpeg", quality));
       };
@@ -455,282 +457,54 @@ export default function ReportPage() {
   // PDF download helper
   const downloadPdf = async (customAck?: string | React.MouseEvent) => {
     const ackStr = typeof customAck === "string" ? customAck : undefined;
-    const effectiveAck = ackStr || ackNumber || `PREVIEW-${Date.now().toString().slice(-6)}`;
-    const { jsPDF } = await import("jspdf");
-    const doc = new jsPDF({ unit: "mm", format: "a4" });
-    const pageW = doc.internal.pageSize.getWidth();
-
-    // Header
-    doc.setFillColor(11, 12, 12);
-    doc.rect(0, 0, pageW, 28, "F");
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.setTextColor(255, 255, 255);
-    doc.text("CasePilot — National Cyber Incident Confirmation", 14, 12);
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "normal");
-    doc.text("Official Citizen Acknowledgment & Statutory Chain-of-Custody Record", 14, 20);
-
-    // Body
-    doc.setTextColor(11, 12, 12);
-    let y = 36;
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.text(ackNumber ? "Acknowledgement Number" : "Provisional Reference (Review Draft)", 14, y); y += 6;
-    doc.setFontSize(18);
-    doc.setTextColor(29, 112, 184);
-    doc.text(effectiveAck, 14, y); y += 10;
-    doc.setTextColor(11, 12, 12);
-
-    const row = (label: string, value: string) => {
-      doc.setFont("helvetica", "bold"); doc.setFontSize(9);
-      doc.text(label, 14, y);
-      doc.setFont("helvetica", "normal");
-      doc.text(value || "Not Specified", 70, y);
-      y += 6.5;
-    };
-
-    row("Filed at:", new Date().toLocaleString("en-IN"));
-    if (selectedCategory) {
-      const sectionName = selectedCategory.section === "WOMEN_CHILDREN"
-        ? "Women / Children Related Crime"
-        : selectedCategory.section === "FINANCIAL"
-        ? "Financial Fraud"
-        : "Other Cyber Crime";
-      row("NCRP Statutory Pillar:", sectionName);
-      row("Official Subcategory:", selectedCategory.subCategory || selectedCategory.label);
-      if (selectedCategory.statutoryCitations && selectedCategory.statutoryCitations.length > 0) {
-        row("Applicable Laws:", selectedCategory.statutoryCitations.slice(0, 2).join(", "));
-      }
-    }
-    if (triageResult) {
-      row("Statutory Urgency:", triageResult.urgency.toUpperCase());
-      row("Classification Engine:", triageResult.source === "ai" ? "AI-assisted (gpt-4o-mini)" : "Rule-based engine");
-    }
-    if (reportAnonymously) {
-      row("NCRP Track:", "Track 1A (Report Anonymously - Identity Withheld)");
-    }
-    if (amount) {
-      row("Reported Loss:", `\u20B9${Number(amount).toLocaleString("en-IN")}`);
-    }
-    if (freezeRequested) {
-      row("Bank Freeze Alert:", "Dispatched via CFCFRMS / 1930 Gateway");
-    }
-
-    y += 2;
-    doc.setFillColor(240, 244, 248);
-    doc.rect(14, y, pageW - 28, 6, "F");
-    doc.setFont("helvetica", "bold"); doc.setFontSize(9);
-    doc.setTextColor(20, 60, 110);
-    doc.text("INCIDENT & SUSPECT PARTICULARS", 16, y + 4.5);
-    doc.setTextColor(11, 12, 12);
-    y += 9;
-
-    row("Platform / Channel:", platformChannel);
-    if (incidentDate) row("Incident Timing:", incidentDate);
-    if (suspectName) row("Suspect Name / Alias:", suspectName);
-    if (suspectPhone) row("Suspect Contact:", suspectPhone);
-    if (suspectAccount) row("Suspect Bank/UPI:", suspectAccount);
-    if (suspectHandle) row("Suspect Handle / Link:", suspectHandle);
-    if (suspectWebsite) row("Suspect Malicious URL:", suspectWebsite);
-    if (suspectDetails) row("Additional Suspect Info:", suspectDetails);
-
-    // Dynamic category-specific particulars
-    if (cryptoNetwork || suspectWallet || transactionHash) {
-      y += 2;
-      doc.setFillColor(240, 244, 248);
-      doc.rect(14, y, pageW - 28, 6, "F");
-      doc.setFont("helvetica", "bold"); doc.setFontSize(9);
-      doc.setTextColor(20, 60, 110);
-      doc.text("CRYPTOCURRENCY & BLOCKCHAIN PARAMETERS", 16, y + 4.5);
-      doc.setTextColor(11, 12, 12);
-      y += 9;
-
-      if (cryptoNetwork) row("Blockchain Network:", cryptoNetwork);
-      if (suspectWallet) row("Suspect Wallet:", suspectWallet);
-      if (transactionHash) row("Transaction Hash (TxID):", transactionHash);
-      if (victimWallet) row("Complainant Wallet:", victimWallet);
-      if (cryptoExchange) row("Exchange Involved:", cryptoExchange);
-    }
-
-    if (encryptedExtension || ransomDemanded) {
-      y += 2;
-      doc.setFillColor(240, 244, 248);
-      doc.rect(14, y, pageW - 28, 6, "F");
-      doc.setFont("helvetica", "bold"); doc.setFontSize(9);
-      doc.setTextColor(20, 60, 110);
-      doc.text("RANSOMWARE ATTACK PARAMETERS", 16, y + 4.5);
-      doc.setTextColor(11, 12, 12);
-      y += 9;
-
-      if (encryptedExtension) row("Encrypted Extension:", encryptedExtension);
-      if (ransomNoteFile) row("Ransom Note File:", ransomNoteFile);
-      if (ransomDemanded) row("Ransom Demand:", ransomDemanded);
-      if (ransomWalletAddress) row("Extortion Wallet / URL:", ransomWalletAddress);
-    }
-
-    if (targetDomain || defacerHandle) {
-      y += 2;
-      doc.setFillColor(240, 244, 248);
-      doc.rect(14, y, pageW - 28, 6, "F");
-      doc.setFont("helvetica", "bold"); doc.setFontSize(9);
-      doc.setTextColor(20, 60, 110);
-      doc.text("INFRASTRUCTURE & DEFACEMENT PARAMETERS", 16, y + 4.5);
-      doc.setTextColor(11, 12, 12);
-      y += 9;
-
-      if (targetDomain) row("Target Domain:", targetDomain);
-      if (serverIp) row("Host Server IP:", serverIp);
-      if (defacerHandle) row("Defacer Alias:", defacerHandle);
-    }
-
-    if (imposterUrl || genuineUrl) {
-      y += 2;
-      doc.setFillColor(240, 244, 248);
-      doc.rect(14, y, pageW - 28, 6, "F");
-      doc.setFont("helvetica", "bold"); doc.setFontSize(9);
-      doc.setTextColor(20, 60, 110);
-      doc.text("SOCIAL MEDIA IMPERSONATION PARTICULARS", 16, y + 4.5);
-      doc.setTextColor(11, 12, 12);
-      y += 9;
-
-      if (socialPlatform) row("Platform:", socialPlatform);
-      if (imposterUrl) row("Imposter Profile:", imposterUrl);
-      if (genuineUrl) row("Genuine Profile:", genuineUrl);
-    }
-
-    if (threatenedContent || extortionDemand) {
-      y += 2;
-      doc.setFillColor(240, 244, 248);
-      doc.rect(14, y, pageW - 28, 6, "F");
-      doc.setFont("helvetica", "bold"); doc.setFontSize(9);
-      doc.setTextColor(20, 60, 110);
-      doc.text("CYBER SAFETY & HARASSMENT PARTICULARS", 16, y + 4.5);
-      doc.setTextColor(11, 12, 12);
-      y += 9;
-
-      if (harassmentMedium) row("Harassment Medium:", harassmentMedium);
-      if (threatenedContent) row("Threatened Content:", threatenedContent);
-      if (extortionDemand) row("Coercion Demand:", extortionDemand);
-    }
-
-    y += 2;
-    doc.setFillColor(240, 244, 248);
-    doc.rect(14, y, pageW - 28, 6, "F");
-    doc.setFont("helvetica", "bold"); doc.setFontSize(9);
-    doc.setTextColor(20, 60, 110);
-    doc.text("COMPLAINANT IDENTITY & POLICE JURISDICTION", 16, y + 4.5);
-    doc.setTextColor(11, 12, 12);
-    y += 9;
-
-    if (reportAnonymously) {
-      row("Complainant Status:", "PROTECTED ANONYMOUS (Track 1A - Identity Withheld)");
-    } else {
-      if (fullName) row("Complainant Name:", fullName);
-      row("Registered Mobile:", phone || accountPhone || "Verified in session");
-      if (email) row("Complainant Email:", email);
-      if (idType && idNumber) row("National ID Proof:", `${idType} (${idNumber})`);
-    }
-    row("Jurisdiction State:", stateName);
-    row("Police District:", district);
-    row("Assigned Cyber Station:", policeStation);
-
-    if (evidenceFiles.length > 0) {
-      y += 2;
-      doc.setFillColor(240, 244, 248);
-      doc.rect(14, y, pageW - 28, 6, "F");
-      doc.setFont("helvetica", "bold"); doc.setFontSize(9);
-      doc.setTextColor(20, 60, 110);
-      doc.text("DIGITAL EVIDENCE VAULT (SHA-256 DIGESTS - SEC 63 BSA)", 16, y + 4.5);
-      doc.setTextColor(11, 12, 12);
-      y += 9;
-
-      evidenceFiles.forEach((f) => {
-        doc.setFont("helvetica", "normal"); doc.setFontSize(7.5);
-        const line = `${f.name} [${f.category || "Evidence"}]: ${f.sha256.slice(0, 36)}...`;
-        doc.text(line, 14, y); y += 4.5;
-      });
-    }
-
-    // Footer
-    const pageH = doc.internal.pageSize.getHeight();
-    doc.setFillColor(248, 249, 250);
-    doc.rect(0, pageH - 18, pageW, 18, "F");
-    doc.setFont("helvetica", "italic"); doc.setFontSize(7.5);
-    doc.setTextColor(80, 90, 95);
-    doc.text(
-      "Statutory Record under BNSS Section 173(3) and BSA Section 63. Official inquiry routed to designated Cyber Cell.",
-      14, pageH - 10
+    const { generateCasePilotDossierPdf } = await import("@/lib/pdf-generator");
+    await generateCasePilotDossierPdf(
+      {
+        ackNumber,
+        selectedCategory,
+        triageResult,
+        reportAnonymously,
+        amount,
+        freezeRequested,
+        platformChannel,
+        incidentDate,
+        suspectName,
+        suspectPhone,
+        suspectAccount,
+        suspectHandle,
+        suspectWebsite,
+        suspectDetails,
+        cryptoNetwork,
+        victimWallet,
+        suspectWallet,
+        transactionHash,
+        cryptoExchange,
+        encryptedExtension,
+        ransomNoteFile,
+        ransomDemanded,
+        ransomWalletAddress,
+        targetDomain,
+        serverIp,
+        defacerHandle,
+        imposterUrl,
+        genuineUrl,
+        socialPlatform,
+        maliciousApkName,
+        threatenedContent,
+        extortionDemand,
+        harassmentMedium,
+        fullName,
+        phone: phone || accountPhone || "",
+        email,
+        idType,
+        idNumber,
+        stateName,
+        district,
+        policeStation,
+        evidenceFiles,
+      },
+      ackStr
     );
-
-    // ── ANNEXURE PAGES: CERTIFIED EVIDENCE IMAGE EXHIBITS (SEC 63 BSA) ──
-    const imageExhibits = evidenceFiles.filter((f) => f.dataUrl && f.dataUrl.startsWith("data:image"));
-    if (imageExhibits.length > 0) {
-      imageExhibits.forEach((img, idx) => {
-        doc.addPage();
-        const pW = doc.internal.pageSize.getWidth();
-        const pH = doc.internal.pageSize.getHeight();
-
-        // Official Exhibit Banner
-        doc.setFillColor(11, 12, 12);
-        doc.rect(0, 0, pW, 18, "F");
-        doc.setFont("helvetica", "bold"); doc.setFontSize(10.5);
-        doc.setTextColor(255, 255, 255);
-        doc.text(`ANNEXURE ${idx + 1} — CERTIFIED DIGITAL EVIDENCE EXHIBIT`, 14, 12);
-
-        // Subheader with Section 63 BSA statutory citation
-        doc.setFont("helvetica", "normal"); doc.setFontSize(8);
-        doc.setTextColor(50, 60, 65);
-        doc.text(`Statutory Chain of Custody: Admissible under Section 63, Bharatiya Sakshya Adhiniyam (BSA), 2023`, 14, 24);
-        doc.text(`NCRP Complaint ACK: ${effectiveAck} | Exhibit File: ${img.name} (${img.category || "Digital Evidence"})`, 14, 29);
-
-        doc.setFont("helvetica", "bold"); doc.setFontSize(7.5);
-        doc.setTextColor(20, 60, 110);
-        doc.text(`SHA-256 Digest:`, 14, 34);
-        doc.setFont("courier", "normal"); doc.setFontSize(7);
-        doc.setTextColor(30, 30, 30);
-        doc.text(img.sha256, 38, 34);
-
-        // Stamped Exhibit Frame
-        const frameX = 14;
-        const frameY = 38;
-        const frameW = pW - 28;
-        const frameH = pH - 60;
-
-        // Image Embed inside Frame
-        try {
-          doc.addImage(img.dataUrl!, "JPEG", frameX + 2, frameY + 2, frameW - 4, frameH - 16, undefined, "FAST");
-        } catch (e1) {
-          try {
-            doc.addImage(img.dataUrl!, frameX + 2, frameY + 2, frameW - 4, frameH - 16);
-          } catch (e2) {
-            console.warn("Could not render image exhibit into PDF:", e2);
-          }
-        }
-
-        // Draw border around the exhibit
-        doc.setDrawColor(20, 60, 110);
-        doc.setLineWidth(0.6);
-        doc.rect(frameX, frameY, frameW, frameH);
-
-        // Official seal text at bottom of frame
-        doc.setFillColor(240, 244, 248);
-        doc.rect(frameX, frameY + frameH - 12, frameW, 12, "F");
-        doc.setFont("helvetica", "bolditalic"); doc.setFontSize(7);
-        doc.setTextColor(20, 60, 110);
-        doc.text(`CERTIFIED TAMPER-EVIDENT EVIDENCE ATTACHMENT • STORED VIA CASEPILOT CRYPTOGRAPHIC VAULT`, frameX + 4, frameY + frameH - 4.5);
-
-        // Exhibit page footer
-        doc.setFillColor(248, 249, 250);
-        doc.rect(0, pH - 15, pW, 15, "F");
-        doc.setFont("helvetica", "italic"); doc.setFontSize(7);
-        doc.setTextColor(90, 100, 105);
-        doc.text("Official Complaint Exhibit for Designated Cyber Crime Police Station and Banking Nodal Officer.", 14, pH - 6);
-      });
-    }
-
-    doc.save(`CasePilot-Complaint-${effectiveAck}.pdf`);
   };
 
   // Speech Recognition setup

@@ -68,16 +68,21 @@ You provide immediate, actionable emergency assistance to citizens facing cyber 
 
 Key Rules & Guidelines:
 1. CALM & DIRECT: Speak with calm authority. Citizens talking to you may be terrified, under active extortion, or suffering financial loss.
-2. DIGITAL ARREST DEBUNKING: If a user mentions a call from CBI, Police, ED, Customs, or Narcotics threatening arrest on video or phone:
+2. MULTILINGUAL & CODE-SWITCHING COMPREHENSION (CRITICAL):
+   - Citizens in India frequently code-switch between English, Hinglish (Hindi written in Roman script), and pure Hindi (Devanagari script), often switching mid-sentence or mid-conversation.
+   - Example: "I was checking my phone and suddenly message aaya ki account block ho gaya. Maine 50,000 transfer kar diye SBI se."
+   - You MUST seamlessly comprehend any language, script, or code-switching.
+   - Respond warmly and empathetically in natural, reassuring Hinglish or Hindi/English matching the citizen's language, while keeping statutory numbers (1930, UTR, Section 63 BSA) clear.
+3. DIGITAL ARREST DEBUNKING: If a user mentions a call from CBI, Police, ED, Customs, or Narcotics threatening arrest on video or phone:
    - State immediately and clearly: "There is no Digital Arrest in Indian law. No government officer can arrest you over a phone or video call. Hang up immediately."
    - Advise them to block the caller and file a report on CasePilot.
-3. FINANCIAL FRAUD & GOLDEN HOUR: If money was transferred within 2 hours:
+4. FINANCIAL FRAUD & GOLDEN HOUR: If money was transferred within 2 hours:
    - Explain the 120-minute "Golden Hour" window to freeze stolen funds.
    - Tell them to keep their 12-digit UTR reference, debit bank name, and suspect account/UPI handle ready.
    - Advise them to immediately call 1930 and file a banking freeze request on CasePilot (/report?urgency=golden-hour).
-6. STATUTORY RIGHTS & BNSS: Mention statutory case tracking under Bharatiya Nagarik Suraksha Sanhita (BNSS) Section 173(3) and Section 503 for fund lien restitution.
-7. EVIDENCE INTEGRITY: Remind them to keep screenshots, chat logs, call records, and transaction receipts without altering them (BSA Section 63 compliant).
-8. Keep responses concise, formatted with clear bullet points, and easy to read on mobile.`;
+5. STATUTORY RIGHTS & BNSS: Mention statutory case tracking under Bharatiya Nagarik Suraksha Sanhita (BNSS) Section 173(3) and Section 503 for fund lien restitution.
+6. EVIDENCE INTEGRITY: Remind them to keep screenshots, chat logs, call records, and transaction receipts without altering them (BSA Section 63 compliant).
+7. Keep responses concise, formatted with clear bullet points, and easy to read on mobile.`;
 
 const REPORTING_SYSTEM_PROMPT = `You are CasePilot's Cyber Incident Intake Officer for Indian citizens reporting to NCRP (cybercrime.gov.in).
 Your objective is to conversationally interview the victim, gather their incident facts with empathy, and construct an official complaint draft adapting to the 3 NCRP pillars:
@@ -91,6 +96,19 @@ MANDATORY STATUTORY FIELDS (Required to file an actionable complaint):
 - Ransomware / Hacking: Incident Date & Time (*), Encrypted Extension (*), Ransom Note Details (*), Target Server IP or Domain (*).
 - Social Media Impersonation: Incident Date & Time (*), Social Platform (*), Imposter Profile URL (*), Genuine Profile URL (*).
 - Women & Children Safety / Sextortion: Incident Date & Time (*), Harassment Medium (*), Suspect Contact / Handle (*), Coercion / Threat Details (*).
+
+MULTILINGUAL & CODE-SWITCHING COMPREHENSION (MANDATORY):
+1. Citizens reporting crimes freely switch between English, Hindi (Devanagari), and Hinglish (Roman Hindi), or code-switch within the same message:
+   - "Maine 50k transfer kiya tha par scam ho gaya, bank bol raha hai UTR do"
+   - "I received a call from an unknown number. Usne bola ki police officer bol raha hu and threatened me"
+   - "मैंने 50,000 रुपये एसबीआई बैंक से भेज दिए। यूटीआर नंबर 429182736451 है।"
+2. You MUST flawlessly extract entities into the "draft" object regardless of whether the citizen spoke in English, Hindi, or Hinglish:
+   - Amounts: "पचास हजार", "50k", "50,000 rupaye", "ek lakh" -> draft.amount: 50000, 100000, etc.
+   - Banks: "एसबीआई", "SBI", "एचडीएफसी", "HDFC", "ICICI", "Axis" -> draft.bankName
+   - Payment Mode: "यूपीआई", "UPI", "Google Pay", "फोनपे", "PhonePe", "Netbanking" -> draft.paymentMode
+   - Channel: "व्हाट्सएप", "WhatsApp", "कॉल आया", "video call" -> draft.channel
+   - Narrative: Synthesize a professional, cohesive English or bilingual summary representing the victim's facts for the official police complaint.
+3. Language in "reply": Reassure the user in the language or natural Hinglish blend they used, while keeping official statutory terms (1930, UTR, Section 63 BSA) clear.
 
 Behavior Guidelines:
 1. Speak with calm empathy and reassuring clarity.
@@ -340,6 +358,28 @@ export async function POST(req: NextRequest) {
       lastMessage.content = "I have attached an evidence screenshot for this case.";
     }
 
+    const requestedLang = (body.language || "auto").toLowerCase();
+
+    // Multilingual Response Mandate for gpt-4o-mini
+    let languageMandate = "";
+    if (requestedLang === "hi") {
+      languageMandate = "\n\nCRITICAL RESPONSE LANGUAGE: The citizen has chosen HINDI. You MUST reply in empathetic, natural Hindi (हिन्दी) using Devanagari script. Keep legal/statutory coordinates (1930, UTR, Section 63 BSA, BNSS) clear.";
+    } else if (requestedLang === "hinglish") {
+      languageMandate = "\n\nCRITICAL RESPONSE LANGUAGE: The citizen has chosen HINGLISH. You MUST reply in conversational Hindi written in Roman/English script (e.g. 'Aap ghabrayiye mat, main turant complaint draft karne mein madad karunga...'). Keep 1930, UTR, Section 63 BSA clear.";
+    } else if (requestedLang === "bn") {
+      languageMandate = "\n\nCRITICAL RESPONSE LANGUAGE: The citizen has chosen BENGALI (বাংলা). You MUST reply in empathetic Bengali script.";
+    } else if (requestedLang === "ta") {
+      languageMandate = "\n\nCRITICAL RESPONSE LANGUAGE: The citizen has chosen TAMIL (தமிழ்). You MUST reply in empathetic Tamil script.";
+    } else if (requestedLang === "te") {
+      languageMandate = "\n\nCRITICAL RESPONSE LANGUAGE: The citizen has chosen TELUGU (తెలుగు). You MUST reply in empathetic Telugu script.";
+    } else if (requestedLang === "mr") {
+      languageMandate = "\n\nCRITICAL RESPONSE LANGUAGE: The citizen has chosen MARATHI (मराठी). You MUST reply in empathetic Marathi script.";
+    } else if (requestedLang === "en") {
+      languageMandate = "\n\nCRITICAL RESPONSE LANGUAGE: The citizen has chosen ENGLISH. You MUST reply in clear, reassuring Indian English.";
+    } else {
+      languageMandate = "\n\nCRITICAL RESPONSE LANGUAGE: DYNAMIC CODE-SWITCHING. Seamlessly detect the citizen's language (English, pure Hindi, Hinglish, Bengali, Tamil, Telugu, Marathi) and reply in that exact language or natural conversational blend.";
+    }
+
     const apiKey = getOpenAiApiKey();
 
     // ── If OPENAI_API_KEY is configured, call gpt-4o-mini ────────────────────
@@ -355,7 +395,7 @@ export async function POST(req: NextRequest) {
             max_tokens: 850,
             response_format: { type: "json_object" },
             messages: [
-              { role: "system", content: REPORTING_SYSTEM_PROMPT },
+              { role: "system", content: REPORTING_SYSTEM_PROMPT + languageMandate },
               ...messages.slice(-8).map((m) => ({
                 role: (m.role === "user" ? "user" : "assistant") as "user" | "assistant",
                 content: String(m.content).slice(0, 2000),
@@ -412,7 +452,7 @@ export async function POST(req: NextRequest) {
         } else {
           // Advisory mode
           const formattedMessages = [
-            { role: "system" as const, content: ADVISORY_SYSTEM_PROMPT },
+            { role: "system" as const, content: ADVISORY_SYSTEM_PROMPT + languageMandate },
             ...messages.slice(-10).map((m) => ({
               role: (m.role === "user" ? "user" : "assistant") as "user" | "assistant",
               content: String(m.content).slice(0, 2000),
@@ -443,7 +483,7 @@ export async function POST(req: NextRequest) {
 
     // ── Deterministic Rule-Based Fallback Engine ─────────────────────────────
     if (mode === "reporting") {
-      const fallbackReporting = generateReportingFallback(messages);
+      const fallbackReporting = generateReportingFallback(messages, requestedLang);
       return NextResponse.json({
         ...fallbackReporting,
         source: "deterministic",
@@ -453,7 +493,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const fallbackReply = generateAdvisoryFallback(lastMessage.content);
+    const fallbackReply = generateAdvisoryFallback(lastMessage.content, requestedLang);
     return NextResponse.json({
       reply: fallbackReply,
       source: "deterministic",
@@ -474,7 +514,10 @@ export async function POST(req: NextRequest) {
  * Deterministic intake fallback for reporting mode.
  * Aggregates all user messages to extract financial and suspect entities.
  */
-function generateReportingFallback(messages: ChatMessage[]): { reply: string; draft: ChatReportDraft } {
+function generateReportingFallback(
+  messages: ChatMessage[],
+  lang?: string
+): { reply: string; draft: ChatReportDraft } {
   const userTexts = messages.filter((m) => m.role === "user").map((m) => m.content).join(" ");
   const fullText = userTexts.toLowerCase();
 
@@ -562,22 +605,54 @@ function generateReportingFallback(messages: ChatMessage[]): { reply: string; dr
   };
 
   const explanations = getStatutoryFieldExplanations(draft);
-  let reply = "Thank you for sharing what happened. I have recorded your incident details.\n\n";
-
   const hasEvidence = fullText.includes("attached evidence") || fullText.includes("screenshot") || fullText.includes("sha-256") || fullText.includes("pasted_evidence");
-  if (hasEvidence) {
-    reply = "✅ **Digital Evidence Recorded & Certified (Section 63 BSA)**\n\n" +
-      "I have secured your attached screenshot exhibit with an immutable SHA-256 cryptographic digest and linked it to your official complaint dossier. It will be rendered as a certified legal exhibit annexure in your police FIR and bank freeze PDF.\n\n" +
-      "Whenever you are ready, click **Transfer to Form →** below to review your pre-filled complaint with evidence and register your statutory tracking ACK.";
-  } else if (explanations.length > 0) {
-    const keyDetail = explanations[0]?.name || "the transaction reference or suspect contact";
-    reply += `To assist cyber cells in investigating and freezing suspect channels, could you also share **${keyDetail}** if available? You can reply directly here or review your captured details below.`;
+
+  const effectiveLang = (lang || (/[\\u0900-\\u097F]/.test(userTexts) ? "hi" : "en")).toLowerCase();
+
+  let reply = "";
+
+  if (effectiveLang === "hi") {
+    if (hasEvidence) {
+      reply = "✅ **डिजिटल साक्ष्य सुरक्षित व प्रमाणित (धारा 63 बीएसए)**\n\n" +
+        "मैंने आपके संलग्न स्क्रीनशॉट को एक सुरक्षित SHA-256 क्रिप्टोग्राफिक हैश के साथ दर्ज कर लिया है। इसे आपकी पुलिस शिकायत और 1930 बैंक खाता फ्रीज के लिए आधिकारिक कानूनी अनुलग्नक के रूप में जोड़ा जाएगा।\n\n" +
+        "शिकायत की समीक्षा और पंजीकरण के लिए नीचे **Transfer to Form →** पर क्लिक करें।";
+    } else if (explanations.length > 0) {
+      const keyDetail = explanations[0]?.name || "लेनदेन संदर्भ (UTR) या संदिग्ध का संपर्क";
+      reply = `आपकी घटना का विवरण सुरक्षित रूप से दर्ज कर लिया गया है।\n\nपुलिस साइबर सेल और बैंक 1930 फ्रीज सहायता के लिए, क्या आप **${keyDetail}** साझा कर सकते हैं? आप सीधे यहाँ उत्तर दे सकते हैं।`;
+    } else {
+      reply = "सभी अनिवार्य वैधानिक विवरण दर्ज हो चुके हैं!\n\n" +
+        "📎 **क्या आपके पास कोई स्क्रीनशॉट या साक्ष्य है** (जैसे भुगतान रसीद, व्हाट्सएप चैट, या कॉल रिकॉर्ड)?\n" +
+        "आप **पेपरक्लिप (📎)** आइकन से जोड़ सकते हैं या **Ctrl + V** से सीधे पेस्ट कर सकते हैं। भारतीय साक्ष्य अधिनियम (BSA) की धारा 63 के तहत डिजिटल साक्ष्य प्रमाणित किया जाएगा।\n\n" +
+        "आगे बढ़ने के लिए नीचे **Transfer to Form →** पर क्लिक करें।";
+    }
+  } else if (effectiveLang === "hinglish") {
+    if (hasEvidence) {
+      reply = "✅ **Digital Evidence Secured & Certified (Section 63 BSA)**\n\n" +
+        "Aapka attached screenshot evidence SHA-256 hash ke saath complaint me add kar diya gaya hai. Yeh official police FIR aur 1930 bank freeze PDF me court-admissible exhibit banega.\n\n" +
+        "Proceed karne ke liye niche **Transfer to Form →** par click karein.";
+    } else if (explanations.length > 0) {
+      const keyDetail = explanations[0]?.name || "12-digit UTR reference ya suspect account details";
+      reply = `Aapki incident details record ho gayi hain.\n\nBank 1930 lien freeze aur police investigation ke liye, kya aap **${keyDetail}** share kar sakte hain? Aap bol kar ya type karke bata sakte hain.`;
+    } else {
+      reply = "Sabhi zaroori statutory fields capture ho gaye hain!\n\n" +
+        "📎 **Kya aapke paas koi payment receipt ya chat screenshot hai?**\n" +
+        "Paperclip (📎) se attach karein ya Ctrl+V se paste karein. Section 63 BSA ke under yeh court-admissible banega.\n\n" +
+        "Complaint submit karne ke liye niche **Transfer to Form →** par click karein.";
+    }
   } else {
-    reply +=
-      "All critical statutory details have been captured!\n\n" +
-      "📎 **Do you have any screenshots or evidence** (such as payment receipts, WhatsApp chats, or call records)?\n" +
-      "You can attach them using the **paperclip icon (📎)** or paste directly with **Ctrl + V**. Under **Section 63 of Bharatiya Sakshya Adhiniyam (BSA)**, CasePilot will compute an immutable SHA-256 cryptographic hash to generate a court-admissible evidence exhibit for the police and bank.\n\n" +
-      "Whenever you are ready, click **Transfer to Form →** below to proceed with your official filing.";
+    if (hasEvidence) {
+      reply = "✅ **Digital Evidence Recorded & Certified (Section 63 BSA)**\n\n" +
+        "I have secured your attached screenshot exhibit with an immutable SHA-256 cryptographic digest and linked it to your official complaint dossier. It will be rendered as a certified legal exhibit annexure in your police FIR and bank freeze PDF.\n\n" +
+        "Whenever you are ready, click **Transfer to Form →** below to review your pre-filled complaint with evidence and register your statutory tracking ACK.";
+    } else if (explanations.length > 0) {
+      const keyDetail = explanations[0]?.name || "the transaction reference or suspect contact";
+      reply = `Thank you for sharing what happened. I have recorded your incident details.\n\nTo assist cyber cells in investigating and freezing suspect channels, could you also share **${keyDetail}** if available? You can reply directly here or review your captured details below.`;
+    } else {
+      reply = "All critical statutory details have been captured!\n\n" +
+        "📎 **Do you have any screenshots or evidence** (such as payment receipts, WhatsApp chats, or call records)?\n" +
+        "You can attach them using the **paperclip icon (📎)** or paste directly with **Ctrl + V**. Under **Section 63 of Bharatiya Sakshya Adhiniyam (BSA)**, CasePilot will compute an immutable SHA-256 cryptographic hash to generate a court-admissible evidence exhibit for the police and bank.\n\n" +
+        "Whenever you are ready, click **Transfer to Form →** below to proceed with your official filing.";
+    }
   }
 
   return { reply, draft };
@@ -586,8 +661,9 @@ function generateReportingFallback(messages: ChatMessage[]): { reply: string; dr
 /**
  * High-accuracy deterministic fallback engine for Advisory mode.
  */
-function generateAdvisoryFallback(text: string): string {
+function generateAdvisoryFallback(text: string, lang?: string): string {
   const lower = text.toLowerCase();
+  const effectiveLang = (lang || (/[\u0900-\u097F]/.test(text) ? "hi" : "en")).toLowerCase();
 
   // 1. Digital arrest signals
   if (
@@ -600,8 +676,29 @@ function generateAdvisoryFallback(text: string): string {
     lower.includes("parcel seized") ||
     lower.includes("ed officer") ||
     lower.includes("fedex") ||
-    lower.includes("stay on the line")
+    lower.includes("stay on the line") ||
+    lower.includes("डिजिटल अरेस्ट") ||
+    lower.includes("पुलिस अफसर") ||
+    lower.includes("वीडियो कॉल")
   ) {
+    if (effectiveLang === "hi") {
+      return `आपातकालीन चेतावनी: भारतीय कानून में "डिजिटल अरेस्ट" (Digital Arrest) नाम का कोई प्रावधान नहीं है।\n\n` +
+        `भारत की कोई भी कानून प्रवर्तन एजेंसी (पुलिस, सीबीआई, ईडी, नारकोटिक्स, कस्टम्स) वीडियो कॉल या फोन पर किसी भी नागरिक को गिरफ्तार नहीं कर सकती।\n\n` +
+        `तुरंत आवश्यक कदम:\n` +
+        `1. तुरंत कॉल काट दें और कॉलर को ब्लॉक करें।\n` +
+        `2. किसी भी "सुरक्षित" या "वेरिफिकेशन" बैंक खाते में पैसे ट्रांसफर न करें।\n` +
+        `3. कोई भी स्क्रीन शेयरिंग ऐप (AnyDesk, TeamViewer, RustDesk) डाउनलोड न करें।\n` +
+        `4. तुरंत 1930 डायल करें या CasePilot पर घटना की रिपोर्ट दर्ज करें।`;
+    }
+    if (effectiveLang === "hinglish") {
+      return `EMERGENCY WARNING: Indian law me "Digital Arrest" jaisa koi concept nahi hai.\n\n` +
+        `Police, CBI, ED, ya Narcotics kabhi bhi Skype ya WhatsApp video call par kisi ko arrest nahi kar sakte.\n\n` +
+        `Turant Actions:\n` +
+        `1. Call ko turant disconnect karein aur number block karein.\n` +
+        `2. Kisi bhi "verification account" me paise transfer na karein.\n` +
+        `3. AnyDesk ya TeamViewer jaisi screen share apps install na karein.\n` +
+        `4. 1930 par call karein ya CasePilot par complain file karein.`;
+    }
     return `EMERGENCY WARNING: There is no such thing as "Digital Arrest" in Indian law.\n\n` +
       `No law enforcement agency (Police, CBI, ED, Narcotics, Customs) is legally permitted to arrest citizens or demand interrogations over Skype, WhatsApp, or video calls.\n\n` +
       `Immediate Actions:\n` +

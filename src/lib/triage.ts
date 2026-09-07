@@ -623,24 +623,91 @@ export interface TriageResult {
   extractedPills?: string[];
 }
 
+/**
+ * Converts Devanagari numerals (०-९) to Western Arabic digits (0-9)
+ */
+export function normalizeDevanagariDigits(str: string): string {
+  const devanagariDigits = ["०", "१", "२", "३", "४", "५", "६", "७", "८", "९"];
+  return str.replace(/[०-९]/g, (w) => String(devanagariDigits.indexOf(w)));
+}
+
 export function parseFinancialAmount(text?: string | null): number | undefined {
   if (!text || typeof text !== "string") return undefined;
-  const lower = text.slice(0, 4000).toLowerCase();
+  // First normalize any Devanagari digits to 0-9
+  const normalized = normalizeDevanagariDigits(text);
+  const lower = normalized.slice(0, 4000).toLowerCase();
 
-  // Pattern for "X lakh"
-  const lakhMatch = lower.match(/(\d+(?:\.\d+)?)\s*(?:lakh|lac)/);
+  // Pattern for "X lakh" or "X लाख"
+  const lakhMatch = lower.match(/(\d+(?:\.\d+)?)\s*(?:lakh|lac|लाख)/);
   if (lakhMatch) {
     return Math.round(parseFloat(lakhMatch[1]) * 100000);
   }
 
-  // Pattern for "X k"
-  const kMatch = lower.match(/(\d+(?:\.\d+)?)\s*k(?:\s|$|[^\w])/);
-  if (kMatch) {
-    return Math.round(parseFloat(kMatch[1]) * 1000);
+  // Pattern for "X thousand" / "X हजार" / "X हज़ार" / "X hazar" / "X k"
+  const hazarMatch = lower.match(/(\d+(?:\.\d+)?)\s*(?:thousand|hazar|hazaar|हजार|हज़ार|k)(?:\s|$|[^\w])/);
+  if (hazarMatch) {
+    return Math.round(parseFloat(hazarMatch[1]) * 1000);
   }
 
-  // Pattern for Rs / INR / ₹ / rupees
-  const numMatch = lower.match(/(?:(?:rs\.?|inr|₹)\s*(\d[\d,]*)|(\d[\d,]*)\s*(?:rs|inr|₹|rupees|went out|lost|deducted))/);
+  // Common spoken Indian language words for amounts (Hindi, Hinglish, Marathi, Bengali, Tamil, Telugu)
+  const spokenMultilingualMap: Record<string, number> = {
+    // Hindi & Hinglish
+    "पचास हजार": 50000,
+    "पचास हज़ार": 50000,
+    "pachas hazar": 50000,
+    "pachaas hazaar": 50000,
+    "दस हजार": 10000,
+    "दस हज़ार": 10000,
+    "das hazar": 10000,
+    "बीस हजार": 20000,
+    "बीस हज़ार": 20000,
+    "bees hazar": 20000,
+    "तीस हजार": 30000,
+    "तीस हज़ार": 30000,
+    "tees hazar": 30000,
+    "चालीस हजार": 40000,
+    "चालीस हज़ार": 40000,
+    "chalis hazar": 40000,
+    "साठ हजार": 60000,
+    "सत्तर हजार": 70000,
+    "अस्सी हजार": 80000,
+    "नब्बे हजार": 90000,
+    "एक लाख": 100000,
+    "ek lakh": 100000,
+    "दो लाख": 200000,
+    "do lakh": 200000,
+    "पांच लाख": 500000,
+    "panch lakh": 500000,
+    // Marathi
+    "पन्नास हजार": 50000,
+    "दहा हजार": 10000,
+    "वीस हजार": 20000,
+    "चाळीस हजार": 40000,
+    // Bengali
+    "পঞ্চাশ হাজার": 50000,
+    "দশ হাজার": 10000,
+    "কুড়ি হাজার": 20000,
+    "ত্রিশ হাজার": 30000,
+    "চল্লিশ হাজার": 40000,
+    // Tamil
+    "ஐம்பதாயிரம்": 50000,
+    "பத்தாயிரம்": 10000,
+    "இருபதாயிரம்": 20000,
+    "ஒரு லட்சம்": 100000,
+    // Telugu
+    "యాభై వేలు": 50000,
+    "పది వేలు": 10000,
+    "ఇరవై వేలు": 20000,
+    "ఒక లక్ష": 100000,
+  };
+  for (const [phrase, val] of Object.entries(spokenMultilingualMap)) {
+    if (lower.includes(phrase)) {
+      return val;
+    }
+  }
+
+  // Pattern for Rs / INR / ₹ / rupees / रुपये / रुपए / টাকা / ரூபாய் / రూపాయలు / कट गए
+  const numMatch = lower.match(/(?:(?:rs\.?|inr|₹|रुपये|रुपए|rupaye|rupay|টাকা|ரூபாய்|రూపాయలు)\s*(\d[\d,]*)|(\d[\d,]*)\s*(?:rs|inr|₹|rupees|रुपये|रुपए|rupaye|rupay|টাকা|ரூபாய்|రూపాయలు|went out|lost|deducted|कट गए|कट गया|चले गए|भेजे|काटा গেছে|கழிக்கப்பட்டது|కట్ అయ్యాయి))/);
   if (numMatch) {
     const raw = (numMatch[1] || numMatch[2]).replace(/,/g, "");
     const val = parseFloat(raw);
@@ -664,32 +731,69 @@ export function extractDeterministicFields(safeText: string, detectedAmount?: nu
     fields.amount = detectedAmount;
   }
 
-  // 1. Bank Names
+  // 1. Bank Names (Supporting English, Abbreviations, Devanagari Hindi, Bengali, Tamil, Telugu, Marathi)
   const bankMap: Record<string, string> = {
     "state bank of india": "State Bank of India",
+    "स्टेट बैंक": "State Bank of India",
+    "एसबीआई": "State Bank of India",
+    "স্টেট ব্যাঙ্ক": "State Bank of India",
+    "எஸ்பிஐ": "State Bank of India",
+    "ఎస్బీఐ": "State Bank of India",
     sbi: "State Bank of India",
+    "एचडीएफसी": "HDFC Bank",
+    "এইচডিএফসি": "HDFC Bank",
+    "ஹெச்டிஎப்சி": "HDFC Bank",
+    "హెచ్‌డీఎఫ్‌సీ": "HDFC Bank",
     hdfc: "HDFC Bank",
+    "आईसीआईसीआई": "ICICI Bank",
+    "आयसीआयसीआय": "ICICI Bank",
+    "আইসিআইসিআই": "ICICI Bank",
+    "ஐசிஐசிஐ": "ICICI Bank",
+    "ఐసీఐసీఐ": "ICICI Bank",
     icici: "ICICI Bank",
+    "एक्सिस": "Axis Bank",
+    "अ‍ॅक्सिस": "Axis Bank",
+    "অ্যাক্সিস": "Axis Bank",
+    "ஆக்சிஸ்": "Axis Bank",
+    "యాక్సిస్": "Axis Bank",
     axis: "Axis Bank",
+    "पीएनबी": "Punjab National Bank",
+    "পিএনবি": "Punjab National Bank",
     pnb: "Punjab National Bank",
-    "punjab national bank": "Punjab National Bank",
+    "पंजाब नेशनल बैंक": "Punjab National Bank",
+    "पंजाब नेशनल": "Punjab National Bank",
+    "बैंक ऑफ बड़ौदा": "Bank of Baroda",
+    "बँक ऑफ बडोदा": "Bank of Baroda",
+    "ব্যাঙ্ক অফ বরোদা": "Bank of Baroda",
     bob: "Bank of Baroda",
     "bank of baroda": "Bank of Baroda",
+    "कोटक": "Kotak Mahindra Bank",
     kotak: "Kotak Mahindra Bank",
+    "केनरा": "Canara Bank",
+    "ক্যানারা": "Canara Bank",
+    "கனரா": "Canara Bank",
+    "కెనరా": "Canara Bank",
     canara: "Canara Bank",
+    "इंडसइंड": "IndusInd Bank",
     indusind: "IndusInd Bank",
+    "यूनियन बैंक": "Union Bank of India",
     "union bank": "Union Bank of India",
+    "पेटीएम": "Paytm Payments Bank",
+    "পেটিএম": "Paytm Payments Bank",
+    "பேடிஎம்": "Paytm Payments Bank",
+    "పేటీఎం": "Paytm Payments Bank",
     paytm: "Paytm Payments Bank",
   };
   for (const [kw, canonical] of Object.entries(bankMap)) {
-    if (new RegExp(`\\b${kw}\\b`, "i").test(safeText)) {
+    if (new RegExp(`(?:^|\\s|[.,;])${kw}(?:$|\\s|[.,;])`, "i").test(safeText)) {
       fields.bankName = canonical;
       break;
     }
   }
 
-  // 2. 12-digit UTR
-  const utrMatch = safeText.match(/\b([0-9]{12})\b/);
+  // 2. 12-digit UTR (supports standard digits or Devanagari digits normalized)
+  const normalizedSafeText = normalizeDevanagariDigits(safeText);
+  const utrMatch = normalizedSafeText.match(/\b([0-9]{12})\b/);
   if (utrMatch) {
     fields.utrNumber = utrMatch[1];
   }
@@ -701,7 +805,7 @@ export function extractDeterministicFields(safeText: string, detectedAmount?: nu
   }
 
   // 4. Suspect Mobile Phone
-  const phoneMatch = safeText.match(/(?:\+91[\s-]?)?([6-9]\d{9})\b/);
+  const phoneMatch = normalizedSafeText.match(/(?:\+91[\s-]?)?([6-9]\d{9})\b/);
   if (phoneMatch) {
     fields.suspectPhone = phoneMatch[1];
   }
@@ -712,38 +816,38 @@ export function extractDeterministicFields(safeText: string, detectedAmount?: nu
     fields.suspectHandle = `@${handleMatch[1]}`;
   }
 
-  // 6. Payment Mode
-  if (/\b(?:upi|gpay|google pay|phonepe|paytm|vpa)\b/i.test(safeText)) {
+  // 6. Payment Mode (English + Hindi + Bengali + Tamil + Telugu)
+  if (/\b(?:upi|gpay|google pay|phonepe|paytm|vpa|यूपीआई|गूगल पे|फोनपे|पेटीएम|ইউপিআই|গুগল পে|ফোনপে|யுபிஐ|கூகிள் பே|போன்பே|பேடிஎம்|యూపీఐ|గూగుల్ పే|ఫోన్‌పే|పేటీఎం)\b/i.test(safeText)) {
     fields.paymentMode = "UPI";
-  } else if (/\b(?:net banking|netbanking|neft|rtgs|imps)\b/i.test(safeText)) {
+  } else if (/\b(?:net banking|netbanking|neft|rtgs|imps|नेट बैंकिंग|नेट बँकिंग|নেট ব্যাংকিং|நெட் பேங்கிங்|నెట్ బ్యాంకింగ్)\b/i.test(safeText)) {
     fields.paymentMode = "Net Banking";
-  } else if (/\b(?:credit card|debit card|atm|pos|card)\b/i.test(safeText)) {
+  } else if (/\b(?:credit card|debit card|atm|pos|card|क्रेडिट कार्ड|डेबिट कार्ड|एटीएम|ডেবিট কার্ড|கடன் அட்டை|డెబిట్ కార్డు)\b/i.test(safeText)) {
     fields.paymentMode = "Credit/Debit Card";
-  } else if (/\b(?:crypto|bitcoin|usdt|eth|ethereum|tron)\b/i.test(safeText)) {
+  } else if (/\b(?:crypto|bitcoin|usdt|eth|ethereum|tron|क्रिप्टो|ক্রিপ্টো|கிரிப்டோ|క్రిప్టో)\b/i.test(safeText)) {
     fields.paymentMode = "Cryptocurrency";
   }
 
-  // 7. Channel
-  if (/\b(?:whatsapp|wa)\b/i.test(safeText)) {
+  // 7. Channel (English + Hindi + Bengali + Tamil + Telugu)
+  if (/\b(?:whatsapp|wa|व्हाट्सएप|वॉट्सएप|হোয়াটসঅ্যাপ|வாட்ஸ்அப்|వాట్సాప్)\b/i.test(safeText)) {
     fields.channel = "WhatsApp";
-  } else if (/\b(?:telegram|tg)\b/i.test(safeText)) {
+  } else if (/\b(?:telegram|tg|टेलीग्राम|টেলিগ্রাম|டெலிகிராம்|టెలిగ్రామ్)\b/i.test(safeText)) {
     fields.channel = "Telegram";
-  } else if (/\b(?:instagram|insta)\b/i.test(safeText)) {
+  } else if (/\b(?:instagram|insta|इंस्टाग्राम|ইনস্টাগ্রাম|இன்ஸ்டாகிராம்|ఇన్‌స్టాగ్రామ్)\b/i.test(safeText)) {
     fields.channel = "Instagram";
-  } else if (/\b(?:sms|text message)\b/i.test(safeText)) {
-    fields.channel = "SMS";
-  } else if (/\b(?:call|phone call|called me|video call)\b/i.test(safeText)) {
+  } else if (/\b(?:phone call|video call|call|कॉल आया|कॉल|फोन कॉल|কল|அழைப்பு|కాల్)\b/i.test(safeText)) {
     fields.channel = "Phone Call";
-  } else if (/\b(?:apk|application|installed)\b/i.test(safeText)) {
+  } else if (/\b(?:sms|message|संदेश|মেসেজ|செய்தி|సందేశం)\b/i.test(safeText)) {
+    fields.channel = "SMS";
+  } else if (/\b(?:apk|application|installed|ऐप|ऐप डाउनलोड|অ্যাপ|ஆப்|యాప్)\b/i.test(safeText)) {
     fields.channel = "Malicious APK";
-  } else if (/\b(?:email|gmail|outlook)\b/i.test(safeText)) {
+  } else if (/\b(?:email|gmail|outlook|ईमेल|ইমেইল|மின்னஞ்சல்|ఈమెయిల్)\b/i.test(safeText)) {
     fields.channel = "Email";
   }
 
   // 8. Incident Timing
-  if (/\b(?:today|aaj)\b/i.test(safeText)) {
+  if (/\b(?:today|aaj|आज|आज सुबह|आज शाम)\b/i.test(safeText)) {
     fields.incidentDate = "Today";
-  } else if (/\b(?:yesterday|kal)\b/i.test(safeText)) {
+  } else if (/\b(?:yesterday|kal|कल|कल रात|कल सुबह)\b/i.test(safeText)) {
     fields.incidentDate = "Yesterday";
   }
 
@@ -866,6 +970,7 @@ function classifyNarrativeCore(narrative?: string | null): TriageResult {
   // I4C Advisory / MHA: False claims of police/CBI video arrest.
   const hasDigitalArrestSignal =
     text.includes("digital arrest") ||
+    text.includes("डिजिटल अरेस्ट") ||
     text.includes("cbi officer") ||
     text.includes("enforcement directorate") ||
     text.includes("income tax officer") ||
@@ -873,6 +978,8 @@ function classifyNarrativeCore(narrative?: string | null): TriageResult {
     text.includes("narcotics control") ||
     text.includes("police custody") ||
     text.includes("fake arrest") ||
+    text.includes("गिरफ्तारी") ||
+    (text.includes("पुलिस") && (text.includes("कॉल") || text.includes("धमकी") || text.includes("वारंट") || text.includes("पार्सल") || text.includes("पैसे"))) ||
     text.includes("stay on the line") ||
     text.includes("do not disconnect") ||
     (text.includes("arrested") && (text.includes("parcel") || text.includes("courier") || text.includes("drugs"))) ||
@@ -904,9 +1011,9 @@ function classifyNarrativeCore(narrative?: string | null): TriageResult {
   const stripped = text.replace(/[^a-z0-9]/g, " ").trim();
   const fillerList = [
     "", "hello", "hi", "hey", "good morning", "good afternoon", "good evening",
-    "namaste", "test", "testing", "please help", "help me", "hello sir", "hi sir", "ok", "okay"
+    "namaste", "नमस्ते", "help", "please help", "help me", "hello sir", "hi sir", "ok", "okay"
   ];
-  if (fillerList.includes(stripped)) {
+  if (fillerList.includes(stripped) || text === "नमस्ते" || text === "नमस्ते सर") {
     const config = getCategoryConfig("other_cybercrime");
     return {
       categoryId: config.id,
@@ -930,7 +1037,7 @@ function classifyNarrativeCore(narrative?: string | null): TriageResult {
   const moneyMovedIndicators = [
     "rupees went out", "money went out", "money left", "debited", "transferred money",
     "deducted", "lost money", "stolen money", "sent money", "went out of my account",
-    "lost ₹", "lost rs"
+    "lost ₹", "lost rs", "पैसे कट गए", "पैसे चले गए", "पैसे भेज दिए", "रुपये कट गए", "खाते से कट गए", "paise kat gaye", "paise chale gaye", "bhej diye"
   ];
   const moneyMoved = moneyMovedIndicators.some((kw) => text.includes(kw)) || !!detectedAmount;
 

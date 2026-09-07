@@ -15,7 +15,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { text, voiceId } = await req.json();
+    const { text, voiceId, language, locale } = await req.json();
 
     if (!text || typeof text !== "string") {
       return NextResponse.json({ error: "Text parameter is required" }, { status: 400 });
@@ -32,8 +32,9 @@ export async function POST(req: NextRequest) {
     }
 
     const selectedVoiceId = voiceId || process.env.ELEVENLABS_VOICE_ID || DEFAULT_GRACE_VOICE_ID;
+    const langCode = language || (locale ? locale.toLowerCase().split("-")[0] : undefined);
 
-    // ElevenLabs Multilingual v2 supports English, Hindi, and 29+ languages with Grace's warm persona
+    // ElevenLabs Multilingual v2 supports English, Hindi, Bengali, Tamil, Telugu, Marathi, and 29+ languages
     const response = await fetch(
       `https://api.elevenlabs.io/v1/text-to-speech/${selectedVoiceId}?output_format=mp3_44100_128`,
       {
@@ -46,6 +47,7 @@ export async function POST(req: NextRequest) {
         body: JSON.stringify({
           text: text.slice(0, 2500), // Safety limit per utterance
           model_id: "eleven_multilingual_v2",
+          ...(langCode ? { language_code: langCode } : {}),
           voice_settings: {
             stability: 0.55,
             similarity_boost: 0.85,
