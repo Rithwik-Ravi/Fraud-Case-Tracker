@@ -334,15 +334,6 @@ export default function ReportPage() {
     if (pills.length > 0) setExtractedPills(pills);
 
     setDraftBannerMessage("✨ Auto-filled statutory incident facts & category parameters from your AI Assistant!");
-
-    // Advance to next step only if user is currently sitting on the initial empty narrative screen
-    setCurrentStep((prev) => {
-      if (prev === "NARRATIVE") {
-        const desk = foundCategory?.priorityDeskType || (draft.amount && Number(draft.amount) > 0 ? "banking_freeze" : "none");
-        return desk !== "none" ? "FREEZE" : "DETAILS";
-      }
-      return prev; // keep the user on their current step if they are already on FREEZE or DETAILS!
-    });
   }, [phone, accountPhone]);
 
   // Real-time live draft synchronization between floating AI Chatbot & this report page
@@ -1254,21 +1245,32 @@ export default function ReportPage() {
           ].map((s, idx, arr) => {
             const isActive = currentStep === s.key;
             const canGoBack = stepNumbers[currentStep] > s.num;
-            const isFuture = stepNumbers[currentStep] < s.num;
+            const isStepAccessible = canGoBack || (narrative.trim().length >= 10 && (s.num <= 3 || Boolean(amount)));
+            const isFuture = !canGoBack && !isStepAccessible;
 
-            if (canGoBack) {
+            if (canGoBack || (isStepAccessible && !isActive)) {
               return (
                 <li key={s.key} className="flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => setCurrentStep(s.key)}
                     className="flex items-center gap-1.5 hover:opacity-75 transition cursor-pointer group focus:outline-none"
-                    title={`Go back to step ${s.num}: ${t(s.labelKey) || s.fallback}`}
+                    title={`Go to step ${s.num}: ${t(s.labelKey) || s.fallback}`}
                   >
-                    <span className="grid h-6 w-6 place-items-center rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 group-hover:bg-emerald-200 transition">
-                      <Check className="h-3.5 w-3.5 stroke-[3]" />
+                    <span
+                      className={`grid h-6 w-6 place-items-center rounded-full text-xs font-bold transition ${
+                        canGoBack
+                          ? "bg-emerald-100 text-emerald-800 border border-emerald-300 group-hover:bg-emerald-200"
+                          : "bg-brand-100 text-brand-800 border border-brand-300 group-hover:bg-brand-200"
+                      }`}
+                    >
+                      {canGoBack ? <Check className="h-3.5 w-3.5 stroke-[3]" /> : s.num}
                     </span>
-                    <span className="text-xs sm:text-sm font-semibold text-emerald-800 group-hover:underline">
+                    <span
+                      className={`text-xs sm:text-sm font-semibold group-hover:underline ${
+                        canGoBack ? "text-emerald-800" : "text-brand-800"
+                      }`}
+                    >
                       {t(s.labelKey) || s.fallback}
                     </span>
                   </button>
@@ -1330,24 +1332,7 @@ export default function ReportPage() {
         </button>
       </div>
 
-      {/* AI Chatbot Imported Draft Alert Banner */}
-      {draftBannerMessage && (
-        <div className="mb-6 rounded-ux-lg border-2 border-brand-400 bg-brand-50 p-4 shadow-sm flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5">
-            <Sparkles className="h-5 w-5 text-brand-600 shrink-0" />
-            <p className="text-sm font-bold text-brand-900">
-              {draftBannerMessage}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setDraftBannerMessage("")}
-            className="text-xs font-semibold text-brand-700 hover:text-brand-900 underline shrink-0"
-          >
-            Dismiss
-          </button>
-        </div>
-      )}
+
 
       {/* Assisted Mode Toggle Banner */}
       <div className="mb-6 rounded-ux-lg border border-brand-200 bg-brand-50/50 p-4">
