@@ -189,6 +189,7 @@ export default function AIChatbot() {
   const [engineStatus, setEngineStatus] = useState<"ready" | "openai" | "offline">("ready");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const evidenceInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [pendingAttachment, setPendingAttachment] = useState<{ dataUrl: string; name: string } | null>(null);
   const { speak, assist } = useAssist();
 
@@ -383,6 +384,9 @@ export default function AIChatbot() {
     }
 
     setInput("");
+    if (textareaRef.current) {
+      textareaRef.current.style.height = "auto";
+    }
     setLoading(true);
 
     try {
@@ -590,6 +594,17 @@ export default function AIChatbot() {
                   type="text"
                   value={bubbleInput}
                   onChange={(e) => setBubbleInput(e.target.value)}
+                  onPaste={(e) => {
+                    const text = e.clipboardData?.getData("text/plain") || e.clipboardData?.getData("text");
+                    if (text) {
+                      e.preventDefault();
+                      const target = e.target as HTMLInputElement;
+                      const start = target.selectionStart ?? bubbleInput.length;
+                      const end = target.selectionEnd ?? bubbleInput.length;
+                      const next = bubbleInput.slice(0, start) + text + bubbleInput.slice(end);
+                      setBubbleInput(next);
+                    }
+                  }}
                   placeholder={t("chat.bubblePlaceholder") || "Describe what happened..."}
                   className="flex-1 rounded-ux border-2 border-ink-200 bg-ink-50 px-3 py-1.5 text-xs text-ink-900 placeholder:text-ink-400 focus:border-brand-500 focus:bg-white focus:outline-none transition"
                 />
@@ -931,7 +946,7 @@ export default function AIChatbot() {
                   if (isListening) stopListening();
                   handleSend();
                 }}
-                className="border-t-2 border-ink-900 bg-white p-2.5 flex items-center gap-1.5"
+                className="border-t-2 border-ink-900 bg-white p-2.5 flex items-end gap-1.5"
               >
                 {/* Hidden image file input */}
                 <input
@@ -948,7 +963,7 @@ export default function AIChatbot() {
                   type="button"
                   onClick={() => setSpeechLang((prev) => (prev === "hi-IN" ? "en-IN" : "hi-IN"))}
                   title={`Speech input language: ${speechLang === "hi-IN" ? "Hindi / Hinglish" : "English"}`}
-                  className="rounded px-1.5 py-1 text-[10px] font-bold text-zinc-600 bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 shrink-0 transition"
+                  className="h-[38px] rounded px-2 text-[10px] font-bold text-zinc-600 bg-zinc-100 hover:bg-zinc-200 border border-zinc-200 shrink-0 transition flex items-center justify-center mb-[1px]"
                 >
                   {speechLang === "hi-IN" ? "हिन्दी" : "EN"}
                 </button>
@@ -958,7 +973,7 @@ export default function AIChatbot() {
                   type="button"
                   onClick={() => evidenceInputRef.current?.click()}
                   title="Attach screenshot / evidence image"
-                  className={`rounded-ux p-2 transition shrink-0 ${
+                  className={`h-[38px] w-[38px] rounded-ux flex items-center justify-center transition shrink-0 mb-[1px] ${
                     pendingAttachment
                       ? "bg-amber-100 text-amber-700 border border-amber-300"
                       : "bg-ink-100 text-ink-600 hover:bg-ink-200 hover:text-ink-900"
@@ -973,7 +988,7 @@ export default function AIChatbot() {
                   type="button"
                   onClick={toggleListening}
                   title={isListening ? "Click to stop recording" : "Click to speak to CasePilot"}
-                  className={`rounded-ux p-2 transition shrink-0 ${
+                  className={`h-[38px] w-[38px] rounded-ux flex items-center justify-center transition shrink-0 mb-[1px] ${
                     isListening
                       ? "bg-red-600 text-white animate-pulse shadow-md"
                       : "bg-ink-100 text-ink-700 hover:bg-ink-200 hover:text-ink-900"
@@ -983,10 +998,67 @@ export default function AIChatbot() {
                   {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
                 </button>
 
-                <input
-                  type="text"
+                <textarea
+                  ref={textareaRef}
+                  rows={1}
                   value={input}
-                  onChange={(e) => setInput(e.target.value)}
+                  onChange={(e) => {
+                    setInput(e.target.value);
+                    e.target.style.height = "auto";
+                    e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      if (!loading && (input.trim() || pendingAttachment)) {
+                        if (isListening) stopListening();
+                        handleSend();
+                      }
+                    }
+                  }}
+                  onPaste={async (e) => {
+                    // 1. Intercept clipboard images (e.g. screenshot pasted via PrintScreen or Win+Shift+S)
+                    const items = e.clipboardData?.items;
+                    if (items && items.length > 0) {
+                      for (let i = 0; i < items.length; i++) {
+                        const item = items[i];
+                        if (item.type.startsWith("image/")) {
+                          const file = item.getAsFile();
+                          if (file) {
+                            e.preventDefault();
+                            try {
+                              const dataUrl = await compressImageToDataUrl(file);
+                              setPendingAttachment({
+                                dataUrl,
+                                name: file.name && file.name !== "image.png" ? file.name : `Pasted_Evidence_${Date.now().toString().slice(-4)}.png`,
+                              });
+                            } catch (err) {
+                              console.error("Failed to process clipboard image:", err);
+                            }
+                            return;
+                          }
+                        }
+                      }
+                    }
+
+                    // 2. Text pasting: explicitly read text/plain and insert at cursor position
+                    const pastedText = e.clipboardData?.getData("text/plain") || e.clipboardData?.getData("text");
+                    if (pastedText) {
+                      e.preventDefault();
+                      const target = e.target as HTMLTextAreaElement;
+                      const start = target.selectionStart ?? input.length;
+                      const end = target.selectionEnd ?? input.length;
+                      const nextVal = input.slice(0, start) + pastedText + input.slice(end);
+                      setInput(nextVal);
+                      setTimeout(() => {
+                        if (textareaRef.current) {
+                          textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + pastedText.length;
+                          textareaRef.current.style.height = "auto";
+                          textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 120)}px`;
+                        }
+                      }, 0);
+                    }
+                  }}
                   placeholder={
                     pendingAttachment
                       ? "Add a note about this screenshot (optional)..."
@@ -995,7 +1067,7 @@ export default function AIChatbot() {
                       : (t("chat.inputPlaceholder") || "Describe what happened, or tap mic to speak...")
                   }
                   disabled={loading}
-                  className={`flex-1 rounded-ux border px-3 py-2 text-xs text-ink-900 placeholder:text-ink-400 focus:outline-none transition ${
+                  className={`flex-1 min-h-[38px] max-h-[120px] resize-none overflow-y-auto rounded-ux border px-3 py-2 text-xs leading-relaxed text-ink-900 placeholder:text-ink-400 focus:outline-none transition ${
                     isListening
                       ? "border-red-400 bg-red-50/20"
                       : pendingAttachment
@@ -1007,7 +1079,7 @@ export default function AIChatbot() {
                 <button
                   type="submit"
                   disabled={loading || (!input.trim() && !pendingAttachment)}
-                  className="rounded-ux bg-ink-900 p-2 text-white hover:bg-ink-800 disabled:opacity-50 transition shrink-0"
+                  className="h-[38px] w-[38px] rounded-ux bg-ink-900 flex items-center justify-center text-white hover:bg-ink-800 disabled:opacity-50 transition shrink-0 mb-[1px]"
                   aria-label="Send message"
                 >
                   <Send className="h-4 w-4" />
