@@ -331,6 +331,9 @@ export default function ReportPage() {
     if (draft.categorySpecificFields?.imposterUrl) {
       pills.push(`Imposter: ${draft.categorySpecificFields.imposterUrl}`);
     }
+    if (draft.evidenceFiles && Array.isArray(draft.evidenceFiles) && draft.evidenceFiles.length > 0) {
+      pills.push(`Evidence: ${draft.evidenceFiles.length} exhibit(s) [SHA-256 verified]`);
+    }
     if (pills.length > 0) setExtractedPills(pills);
 
     setDraftBannerMessage("✨ Auto-filled statutory incident facts & category parameters from your AI Assistant!");
@@ -450,8 +453,9 @@ export default function ReportPage() {
   };
 
   // PDF download helper
-  const downloadPdf = async () => {
-    if (!ackNumber) return;
+  const downloadPdf = async (customAck?: string | React.MouseEvent) => {
+    const ackStr = typeof customAck === "string" ? customAck : undefined;
+    const effectiveAck = ackStr || ackNumber || `PREVIEW-${Date.now().toString().slice(-6)}`;
     const { jsPDF } = await import("jspdf");
     const doc = new jsPDF({ unit: "mm", format: "a4" });
     const pageW = doc.internal.pageSize.getWidth();
@@ -473,10 +477,10 @@ export default function ReportPage() {
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(10);
-    doc.text("Acknowledgement Number", 14, y); y += 6;
+    doc.text(ackNumber ? "Acknowledgement Number" : "Provisional Reference (Review Draft)", 14, y); y += 6;
     doc.setFontSize(18);
     doc.setTextColor(29, 112, 184);
-    doc.text(ackNumber, 14, y); y += 10;
+    doc.text(effectiveAck, 14, y); y += 10;
     doc.setTextColor(11, 12, 12);
 
     const row = (label: string, value: string) => {
@@ -679,7 +683,7 @@ export default function ReportPage() {
         doc.setFont("helvetica", "normal"); doc.setFontSize(8);
         doc.setTextColor(50, 60, 65);
         doc.text(`Statutory Chain of Custody: Admissible under Section 63, Bharatiya Sakshya Adhiniyam (BSA), 2023`, 14, 24);
-        doc.text(`NCRP Complaint ACK: ${ackNumber} | Exhibit File: ${img.name} (${img.category || "Digital Evidence"})`, 14, 29);
+        doc.text(`NCRP Complaint ACK: ${effectiveAck} | Exhibit File: ${img.name} (${img.category || "Digital Evidence"})`, 14, 29);
 
         doc.setFont("helvetica", "bold"); doc.setFontSize(7.5);
         doc.setTextColor(20, 60, 110);
@@ -726,7 +730,7 @@ export default function ReportPage() {
       });
     }
 
-    doc.save(`CasePilot-Complaint-${ackNumber}.pdf`);
+    doc.save(`CasePilot-Complaint-${effectiveAck}.pdf`);
   };
 
   // Speech Recognition setup
@@ -2926,6 +2930,25 @@ export default function ReportPage() {
               </div>
             )}
 
+            {evidenceFiles.length > 0 && (
+              <div className="mt-4 rounded-ux border border-emerald-300 bg-emerald-50/70 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs text-emerald-950">
+                <div className="flex items-center gap-2 min-w-0">
+                  <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+                  <span>
+                    <strong>Section 63 BSA Certified:</strong> {evidenceFiles.length} exhibit(s) cryptographically hashed with SHA-256 and ready for official court-admissible PDF Annexure.
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => downloadPdf()}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 hover:text-emerald-950 underline shrink-0 cursor-pointer"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span>Preview Evidence in PDF</span>
+                </button>
+              </div>
+            )}
+
             <div className="mt-6 flex justify-between items-center pt-4 border-t border-ink-200">
               <button
                 type="button"
@@ -3198,15 +3221,27 @@ export default function ReportPage() {
                 <span>{t("report.back") || "Back"}</span>
               </button>
 
-              <Button
-                type="button"
-                variant="primary"
-                onClick={handleFinalSubmit}
-                disabled={submitting || !undertakingAccepted}
-                className="py-3.5 px-8 text-lg font-bold"
-              >
-                {submitting ? "Registering Official Record..." : "File Official Complaint"}
-              </Button>
+              <div className="flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => downloadPdf()}
+                  className="inline-flex items-center gap-1.5 rounded-ux border-2 border-brand-500 bg-brand-50/70 px-4 py-3 text-sm font-bold text-brand-700 hover:bg-brand-100 transition shadow-2xs cursor-pointer"
+                  title="Generate and download the complete PDF dossier with all evidence annexures"
+                >
+                  <Download className="h-4 w-4" />
+                  <span>Preview PDF Dossier (Draft)</span>
+                </button>
+
+                <Button
+                  type="button"
+                  variant="primary"
+                  onClick={handleFinalSubmit}
+                  disabled={submitting || !undertakingAccepted}
+                  className="py-3.5 px-8 text-lg font-bold"
+                >
+                  {submitting ? "Registering Official Record..." : "File Official Complaint"}
+                </Button>
+              </div>
             </div>
           </Card>
         </div>

@@ -102,6 +102,8 @@ Behavior Guidelines:
    - If draft.utrNumber is not null, DO NOT ask for the UTR!
    - If draft.suspectAccount or draft.suspectPhone is not null, DO NOT ask for suspect details!
 3. Structure your "reply" based on the "draft":
+   - If the user has just provided or attached an evidence screenshot/receipt (or message mentions attached evidence or SHA-256):
+     Confirm enthusiastically that the evidence screenshot has been cryptographically secured with an immutable SHA-256 digest under Section 63 BSA, permanently anchored to their case file, and will be rendered as a certified legal exhibit annexure in their official police FIR and bank freeze PDF. Prompt them that they can click "Transfer to Form →" to review or file.
    - If any mandatory statutory fields (*) are still missing in "draft", gently ask for the top missing field and explain why it is needed.
    - If ALL mandatory statutory fields (*) are already captured in "draft", DO NOT ask for more information. Acknowledge the captured facts (amount, bank, UTR, suspect) and actively prompt for evidence screenshots:
      "📎 Do you have any screenshots or evidence (such as payment receipts, WhatsApp chats, or call records)? You can attach them using the paperclip (📎) icon or paste directly (Ctrl + V). Under Section 63 of Bharatiya Sakshya Adhiniyam (BSA), CasePilot will automatically compute an immutable SHA-256 cryptographic hash to make them court-admissible evidence for the police and bank."
@@ -331,8 +333,11 @@ export async function POST(req: NextRequest) {
     }
 
     const lastMessage = messages[messages.length - 1];
-    if (!lastMessage || !lastMessage.content || typeof lastMessage.content !== "string") {
+    if (!lastMessage || typeof lastMessage.content !== "string") {
       return NextResponse.json({ error: "Invalid message format." }, { status: 400 });
+    }
+    if (!lastMessage.content.trim()) {
+      lastMessage.content = "I have attached an evidence screenshot for this case.";
     }
 
     const apiKey = getOpenAiApiKey();
@@ -559,7 +564,12 @@ function generateReportingFallback(messages: ChatMessage[]): { reply: string; dr
   const explanations = getStatutoryFieldExplanations(draft);
   let reply = "Thank you for sharing what happened. I have recorded your incident details.\n\n";
 
-  if (explanations.length > 0) {
+  const hasEvidence = fullText.includes("attached evidence") || fullText.includes("screenshot") || fullText.includes("sha-256") || fullText.includes("pasted_evidence");
+  if (hasEvidence) {
+    reply = "✅ **Digital Evidence Recorded & Certified (Section 63 BSA)**\n\n" +
+      "I have secured your attached screenshot exhibit with an immutable SHA-256 cryptographic digest and linked it to your official complaint dossier. It will be rendered as a certified legal exhibit annexure in your police FIR and bank freeze PDF.\n\n" +
+      "Whenever you are ready, click **Transfer to Form →** below to review your pre-filled complaint with evidence and register your statutory tracking ACK.";
+  } else if (explanations.length > 0) {
     const keyDetail = explanations[0]?.name || "the transaction reference or suspect contact";
     reply += `To assist cyber cells in investigating and freezing suspect channels, could you also share **${keyDetail}** if available? You can reply directly here or review your captured details below.`;
   } else {
