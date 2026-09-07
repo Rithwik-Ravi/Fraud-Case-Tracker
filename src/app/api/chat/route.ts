@@ -97,6 +97,7 @@ Behavior Guidelines:
 2. Structure your "reply" naturally and conversationally:
    - Acknowledge what the citizen shared with warmth and confirm any key facts captured so far.
    - MANDATORY FIELD PRIORITY: Inspect what mandatory fields (*) are still missing in the draft. Actively ask for the TOP 1 or 2 missing mandatory fields in your reply (e.g. asking for the 12-digit UTR, bank name, suspect UPI, or exact incident date/time). Explain gently why this specific information is required to file their formal complaint and freeze suspect channels.
+   - EVIDENCE SCREENSHOT PROMPT (CRITICAL): If the citizen has provided the core incident facts (or all mandatory fields like amount, bank, UTR, and suspect details are captured), you MUST actively ask if they have any evidence screenshots (such as UPI payment receipts, WhatsApp chat logs, or call screenshots). Instruct them to attach the screenshot using the paperclip (📎) icon or by pasting it directly with Ctrl+V. Explain that CasePilot will automatically calculate an immutable SHA-256 cryptographic hash under Section 63 of Bharatiya Sakshya Adhiniyam (BSA) to make it court-admissible evidence for the police and bank.
    - Do NOT dump a long, bulleted checklist of all fields. Ask conversationally, keeping it brief and supportive (2-3 concise paragraphs maximum).
 3. Field Extraction: Extract all relevant fields into the draft according to the category.
 4. Output format: You MUST reply ONLY with a valid JSON object matching this schema:
@@ -361,11 +362,18 @@ export async function POST(req: NextRequest) {
             if (draft) {
               const explanations = getStatutoryFieldExplanations(draft);
 
-              // If everything is completely captured, provide a brief ready prompt if not already present
-              if (explanations.length === 0 && !replyText.toLowerCase().includes("transfer to form") && !replyText.toLowerCase().includes("ready")) {
-                replyText =
-                  replyText.trim() +
-                  "\n\nAll key details have been captured! You can click **Transfer to Form** below to proceed with your official filing.";
+              // If everything is completely captured, ensure the reply actively prompts for evidence screenshots
+              if (explanations.length === 0) {
+                if (
+                  !replyText.toLowerCase().includes("screenshot") &&
+                  !replyText.toLowerCase().includes("evidence") &&
+                  !replyText.toLowerCase().includes("attach")
+                ) {
+                  replyText =
+                    replyText.trim() +
+                    "\n\n📎 **Do you have any screenshots or evidence** (such as payment receipts, WhatsApp chats, or call records)?\n" +
+                    "You can attach them using the **paperclip icon (📎)** or paste them directly with **Ctrl + V**. Under **Section 63 of Bharatiya Sakshya Adhiniyam (BSA)**, CasePilot will automatically compute an immutable SHA-256 cryptographic hash to make them legally admissible in court.";
+                }
               }
             }
 
@@ -539,7 +547,10 @@ function generateReportingFallback(messages: ChatMessage[]): { reply: string; dr
     reply += `To assist cyber cells in investigating and freezing suspect channels, could you also share **${keyDetail}** if available? You can reply directly here or review your captured details below.`;
   } else {
     reply +=
-      "All critical statutory details have been captured! You can click **Transfer to Form** below to review and submit your official filing.";
+      "All critical statutory details have been captured!\n\n" +
+      "📎 **Do you have any screenshots or evidence** (such as payment receipts, WhatsApp chats, or call records)?\n" +
+      "You can attach them using the **paperclip icon (📎)** or paste directly with **Ctrl + V**. Under **Section 63 of Bharatiya Sakshya Adhiniyam (BSA)**, CasePilot will compute an immutable SHA-256 cryptographic hash to generate a court-admissible evidence exhibit for the police and bank.\n\n" +
+      "Whenever you are ready, click **Transfer to Form →** below to proceed with your official filing.";
   }
 
   return { reply, draft };
